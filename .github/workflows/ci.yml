@@ -8,23 +8,23 @@ on:
 
 jobs:
   # ==========================================================
-  # PROJECT 1: Learning API (Root Directory)
-  # Uses Python 3.11, port 8000, /health endpoint, 80% coverage
+  # PROJECT 1: Learning Service (services/learning_service)
+  # Uses Python 3.11, Port 8000, /health route, 80% coverage
   # ==========================================================
-  learning-api-ci:
-    name: "Project 1: Learning API"
+  learning-service-ci:
+    name: "Project 1: Learning Service"
     uses: ./.github/workflows/reusable-pipeline.yml
     with:
-      working-directory: "."
+      working-directory: "services/learning_service"
       python-version: "3.11"
       min-coverage: 80
-      image-name: "fastapi-app"
+      image-name: "learning-service"
       app-port: 8000
       health-endpoint: "/health"
 
   # ==========================================================
   # PROJECT 2: Order Service (services/order_service)
-  # Uses Python 3.11, port 8080, /healthz endpoint, 85% coverage
+  # Uses Python 3.11, Port 8080, /healthz route, 85% coverage
   # ==========================================================
   order-service-ci:
     name: "Project 2: Order Service"

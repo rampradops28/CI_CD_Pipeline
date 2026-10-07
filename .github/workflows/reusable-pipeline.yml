@@ -63,7 +63,7 @@ jobs:
       - name: Run Pytest with Coverage Gate
         working-directory: ${{ inputs.working-directory }}
         run: |
-          pytest --cov=app --cov-report=term-missing --cov-fail-under=${{ inputs.min-coverage }}
+          pytest tests/ --import-mode=importlib --cov=app --cov-report=term-missing --cov-fail-under=${{ inputs.min-coverage }}
 
   # ==========================================================
   # JOB 2: Docker Build & Smoke Test
