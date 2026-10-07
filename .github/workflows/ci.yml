@@ -1,4 +1,4 @@
-name: App CI Pipeline
+name: Multi-Project CI Pipeline
 
 on:
   push:
@@ -7,13 +7,32 @@ on:
     branches: [ "main" ]
 
 jobs:
-  # Call the reusable workflow
-  build-and-test:
-    name: Run Reusable Pipeline
+  # ==========================================================
+  # PROJECT 1: Learning API (Root Directory)
+  # Uses Python 3.11, port 8000, /health endpoint, 80% coverage
+  # ==========================================================
+  learning-api-ci:
+    name: "Project 1: Learning API"
     uses: ./.github/workflows/reusable-pipeline.yml
     with:
+      working-directory: "."
       python-version: "3.11"
       min-coverage: 80
       image-name: "fastapi-app"
       app-port: 8000
       health-endpoint: "/health"
+
+  # ==========================================================
+  # PROJECT 2: Order Service (services/order_service)
+  # Uses Python 3.11, port 8080, /healthz endpoint, 85% coverage
+  # ==========================================================
+  order-service-ci:
+    name: "Project 2: Order Service"
+    uses: ./.github/workflows/reusable-pipeline.yml
+    with:
+      working-directory: "services/order_service"
+      python-version: "3.11"
+      min-coverage: 85
+      image-name: "order-service"
+      app-port: 8080
+      health-endpoint: "/healthz"
