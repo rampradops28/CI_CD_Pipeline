@@ -1,0 +1,22 @@
+name: User Service CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ci:
+    name: Call Reusable CI Platform
+    # Invokes the centralized reusable workflow from the shared CI repository
+    uses: rampradops28/fastapi-ci-platform/.github/workflows/reusable-pipeline.yml@v1
+    with:
+      working-directory: "."
+      python-version: "3.11"
+      min-coverage: 80
+      image-name: "user-service"
+      app-port: 8000
+      health-endpoint: "/health"

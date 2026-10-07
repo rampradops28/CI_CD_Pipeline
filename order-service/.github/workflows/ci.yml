@@ -1,0 +1,22 @@
+name: Order Service CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ci:
+    name: Call Reusable CI Platform
+    # Invokes the SAME shared workflow from fastapi-ci-platform at @v1
+    uses: rampradops28/fastapi-ci-platform/.github/workflows/reusable-pipeline.yml@v1
+    with:
+      working-directory: "."
+      python-version: "3.11"
+      min-coverage: 85
+      image-name: "order-service"
+      app-port: 8080
+      health-endpoint: "/health"

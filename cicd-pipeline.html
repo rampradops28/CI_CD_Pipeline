@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modern CI/CD Pipeline</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0d14;
+    --surface: #111620;
+    --border: #1e2535;
+    --accent-blue: #3b82f6;
+    --accent-cyan: #06b6d4;
+    --accent-green: #10b981;
+    --accent-orange: #f59e0b;
+    --accent-purple: #8b5cf6;
+    --accent-red: #ef4444;
+    --accent-pink: #ec4899;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --glow: rgba(59, 130, 246, 0.15);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 40px 24px;
+    background-image:
+      radial-gradient(ellipse at 20% 20%, rgba(59,130,246,0.05) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(139,92,246,0.05) 0%, transparent 60%);
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 56px;
+  }
+
+  .label-tag {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent-cyan);
+    border: 1px solid rgba(6,182,212,0.3);
+    padding: 4px 14px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+    background: rgba(6,182,212,0.05);
+  }
+
+  h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: clamp(22px, 4vw, 36px);
+    font-weight: 700;
+    background: linear-gradient(135deg, #e2e8f0, #94a3b8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 10px;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 300;
+  }
+
+  /* ── Pipeline Strip ── */
+  .pipeline-strip {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: 48px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+
+  .stage-box {
+    flex: 1;
+    min-width: 120px;
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 20px 14px 16px;
+    text-align: center;
+    cursor: default;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+  }
+
+  .stage-box:first-child { border-radius: 12px 0 0 12px; }
+  .stage-box:last-child  { border-radius: 0 12px 12px 0; }
+
+  .stage-box:hover {
+    background: #161c2a;
+    transform: translateY(-3px);
+    z-index: 2;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.4);
+  }
+
+  .stage-box + .stage-box {
+    border-left: none;
+  }
+
+  /* colored top bar */
+  .stage-box::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--stage-color);
+    border-radius: inherit;
+  }
+
+  .arrow-sep {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    flex-shrink: 0;
+    background: transparent;
+    position: relative;
+    z-index: 1;
+  }
+
+  .arrow-sep svg {
+    color: var(--muted);
+    opacity: 0.6;
+  }
+
+  .stage-icon {
+    font-size: 28px;
+    margin-bottom: 8px;
+    display: block;
+    filter: drop-shadow(0 0 8px var(--stage-color));
+  }
+
+  .stage-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--stage-color);
+    margin-bottom: 6px;
+  }
+
+  .stage-desc {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* ── Detail Grid ── */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    margin-bottom: 48px;
+  }
+
+  .detail-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .detail-card:hover {
+    border-color: var(--card-color);
+    box-shadow: 0 0 24px rgba(0,0,0,0.3), 0 0 1px var(--card-color);
+  }
+
+  .detail-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 4px; height: 100%;
+    background: var(--card-color);
+    border-radius: 12px 0 0 12px;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .card-icon { font-size: 20px; }
+
+  .card-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--card-color);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .step-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .step-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+
+  .step-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--card-color);
+    flex-shrink: 0;
+    margin-top: 5px;
+  }
+
+  /* ── Flow Environments ── */
+  .env-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 40px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .env-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 90px;
+  }
+
+  .env-circle {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    border: 2px solid var(--env-color);
+    background: rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 0 20px -4px var(--env-color);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .env-circle:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 32px -2px var(--env-color);
+  }
+
+  .env-label {
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+    color: var(--env-color);
+    text-align: center;
+    letter-spacing: 0.5px;
+  }
+
+  .env-arrow {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .env-arrow svg { color: var(--muted); }
+
+  /* ── Metrics Row ── */
+  .metrics-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
+    transition: transform 0.2s;
+  }
+
+  .metric-card:hover { transform: translateY(-2px); }
+
+  .metric-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--metric-color);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .metric-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* ── Section Header ── */
+  .section-header {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .section-header::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Tools Row ── */
+  .tools-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 48px;
+  }
+
+  .tool-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: #94a3b8;
+    font-family: 'Space Mono', monospace;
+    transition: border-color 0.15s, color 0.15s;
+    cursor: default;
+  }
+
+  .tool-badge:hover {
+    border-color: var(--tool-color);
+    color: var(--tool-color);
+  }
+
+  .tool-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--tool-color);
+    flex-shrink: 0;
+  }
+
+  /* ── Animated pipeline line at top ── */
+  .live-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 52px;
+    background: var(--surface);
+  }
+
+  .live-segment {
+    height: 100%;
+    flex: 1;
+    animation: pulse-bar 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-bar {
+    0%,100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    font-family: 'Space Mono', monospace;
+    margin-top: 24px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="label-tag">DevOps Reference</div>
+  <h1>Modern CI/CD Pipeline</h1>
+  <p class="subtitle">From code commit to production — automated, reliable, observable</p>
+</header>
+
+<!-- animated live bar -->
+<div class="live-bar">
+  <div class="live-segment" style="background:#3b82f6; animation-delay:0s"></div>
+  <div class="live-segment" style="background:#06b6d4; animation-delay:0.2s"></div>
+  <div class="live-segment" style="background:#8b5cf6; animation-delay:0.4s"></div>
+  <div class="live-segment" style="background:#10b981; animation-delay:0.6s"></div>
+  <div class="live-segment" style="background:#f59e0b; animation-delay:0.8s"></div>
+  <div class="live-segment" style="background:#ec4899; animation-delay:1.0s"></div>
+  <div class="live-segment" style="background:#10b981; animation-delay:1.2s"></div>
+</div>
+
+<!-- ── Stage Strip ── -->
+<div class="section-header">Pipeline Stages</div>
+<div class="pipeline-strip">
+
+  <div class="stage-box" style="--stage-color: #3b82f6">
+    <span class="stage-icon">💾</span>
+    <div class="stage-name">Source</div>
+    <div class="stage-desc">Code push & PR triggers</div>
+  </div>
+
+  <div class="arrow-sep">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+  </div>
+
+  <div class="stage-box" style="--stage-color: #06b6d4">
+    <span class="stage-icon">🔨</span>
+    <div class="stage-name">Build</div>
+    <div class="stage-desc">Compile, lint & package</div>
+  </div>
+
+  <div class="arrow-sep">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+  </div>
+
+  <div class="stage-box" style="--stage-color: #8b5cf6">
+    <span class="stage-icon">🧪</span>
+    <div class="stage-name">Test</div>
+    <div class="stage-desc">Unit · Integration · E2E</div>
+  </div>
+
+  <div class="arrow-sep">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+  </div>
+
+  <div class="stage-box" style="--stage-color: #f59e0b">
+    <span class="stage-icon">🔍</span>
+    <div class="stage-name">Security</div>
+    <div class="stage-desc">SAST · DAST · Deps scan</div>
+  </div>
+
+  <div class="arrow-sep">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+  </div>
+
+  <div class="stage-box" style="--stage-color: #ec4899">
+    <span class="stage-icon">📦</span>
+    <div class="stage-name">Artifact</div>
+    <div class="stage-desc">Docker image & registry</div>
+  </div>
+
+  <div class="arrow-sep">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+  </div>
+
+  <div class="stage-box" style="--stage-color: #10b981">
+    <span class="stage-icon">🚀</span>
+    <div class="stage-name">Deploy</div>
+    <div class="stage-desc">Dev → Staging → Prod</div>
+  </div>
+
+  <div class="arrow-sep">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+  </div>
+
+  <div class="stage-box" style="--stage-color: #64748b">
+    <span class="stage-icon">📊</span>
+    <div class="stage-name">Observe</div>
+    <div class="stage-desc">Logs · Metrics · Alerts</div>
+  </div>
+</div>
+
+<!-- ── Environment Flow ── -->
+<div class="section-header">Deployment Environments</div>
+<div class="env-row">
+
+  <div class="env-node">
+    <div class="env-circle" style="--env-color:#3b82f6">💻</div>
+    <div class="env-label" style="--env-color:#3b82f6; color:#3b82f6">Local Dev</div>
+  </div>
+
+  <div class="env-arrow">
+    <svg width="32" height="16" viewBox="0 0 32 16" fill="none"><path d="M0 8h28M22 2l6 6-6 6" stroke="currentColor" stroke-width="1.5"/></svg>
+  </div>
+
+  <div class="env-node">
+    <div class="env-circle" style="--env-color:#06b6d4">🔀</div>
+    <div class="env-label" style="--env-color:#06b6d4; color:#06b6d4">PR / Branch</div>
+  </div>
+
+  <div class="env-arrow">
+    <svg width="32" height="16" viewBox="0 0 32 16" fill="none"><path d="M0 8h28M22 2l6 6-6 6" stroke="currentColor" stroke-width="1.5"/></svg>
+  </div>
+
+  <div class="env-node">
+    <div class="env-circle" style="--env-color:#8b5cf6">🧪</div>
+    <div class="env-label" style="--env-color:#8b5cf6; color:#8b5cf6">CI Runner</div>
+  </div>
+
+  <div class="env-arrow">
+    <svg width="32" height="16" viewBox="0 0 32 16" fill="none"><path d="M0 8h28M22 2l6 6-6 6" stroke="currentColor" stroke-width="1.5"/></svg>
+  </div>
+
+  <div class="env-node">
+    <div class="env-circle" style="--env-color:#f59e0b">🏗️</div>
+    <div class="env-label" style="--env-color:#f59e0b; color:#f59e0b">Dev/QA</div>
+  </div>
+
+  <div class="env-arrow">
+    <svg width="32" height="16" viewBox="0 0 32 16" fill="none"><path d="M0 8h28M22 2l6 6-6 6" stroke="currentColor" stroke-width="1.5"/></svg>
+  </div>
+
+  <div class="env-node">
+    <div class="env-circle" style="--env-color:#ec4899">🎭</div>
+    <div class="env-label" style="--env-color:#ec4899; color:#ec4899">Staging</div>
+  </div>
+
+  <div class="env-arrow">
+    <svg width="40" height="16" viewBox="0 0 40 16" fill="none">
+      <path d="M0 8h36M28 2l8 6-8 6" stroke="#10b981" stroke-width="2"/>
+    </svg>
+  </div>
+
+  <div class="env-node">
+    <div class="env-circle" style="--env-color:#10b981; box-shadow: 0 0 30px -2px #10b981">🌐</div>
+    <div class="env-label" style="--env-color:#10b981; color:#10b981">Production</div>
+  </div>
+</div>
+
+<!-- ── Detail Cards ── -->
+<div class="section-header">Stage Breakdown</div>
+<div class="detail-grid">
+
+  <div class="detail-card" style="--card-color:#3b82f6">
+    <div class="card-header">
+      <span class="card-icon">💾</span>
+      <span class="card-title">Source Control</span>
+    </div>
+    <ul class="step-list">
+      <li><div class="step-dot"></div>Developer pushes to feature branch</li>
+      <li><div class="step-dot"></div>Pull Request opened → webhook fires</li>
+      <li><div class="step-dot"></div>Automated checks run on every commit</li>
+      <li><div class="step-dot"></div>Code review required before merge</li>
+    </ul>
+  </div>
+
+  <div class="detail-card" style="--card-color:#06b6d4">
+    <div class="card-header">
+      <span class="card-icon">🔨</span>
+      <span class="card-title">Build Stage</span>
+    </div>
+    <ul class="step-list">
+      <li><div class="step-dot"></div>Install dependencies with lockfile</li>
+      <li><div class="step-dot"></div>Run linter and type checks</li>
+      <li><div class="step-dot"></div>Compile / transpile source code</li>
+      <li><div class="step-dot"></div>Build reproducible Docker image</li>
+    </ul>
+  </div>
+
+  <div class="detail-card" style="--card-color:#8b5cf6">
+    <div class="card-header">
+      <span class="card-icon">🧪</span>
+      <span class="card-title">Test Stage</span>
+    </div>
+    <ul class="step-list">
+      <li><div class="step-dot"></div>Unit tests with coverage threshold</li>
+      <li><div class="step-dot"></div>Integration tests against real services</li>
+      <li><div class="step-dot"></div>E2E tests via Playwright / Cypress</li>
+      <li><div class="step-dot"></div>Performance regression checks</li>
+    </ul>
+  </div>
+
+  <div class="detail-card" style="--card-color:#f59e0b">
+    <div class="card-header">
+      <span class="card-icon">🔍</span>
+      <span class="card-title">Security Scan</span>
+    </div>
+    <ul class="step-list">
+      <li><div class="step-dot"></div>SAST: static code analysis (SonarQube)</li>
+      <li><div class="step-dot"></div>Dependency vulnerabilities (Snyk / Trivy)</li>
+      <li><div class="step-dot"></div>Container image scanning</li>
+      <li><div class="step-dot"></div>Secret detection (git-secrets, truffleHog)</li>
+    </ul>
+  </div>
+
+  <div class="detail-card" style="--card-color:#ec4899">
+    <div class="card-header">
+      <span class="card-icon">📦</span>
+      <span class="card-title">Artifact Registry</span>
+    </div>
+    <ul class="step-list">
+      <li><div class="step-dot"></div>Tag image with commit SHA + semver</li>
+      <li><div class="step-dot"></div>Push to ECR / GCR / GHCR</li>
+      <li><div class="step-dot"></div>Sign image with cosign (supply chain)</li>
+      <li><div class="step-dot"></div>Store SBOMs for compliance</li>
+    </ul>
+  </div>
+
+  <div class="detail-card" style="--card-color:#10b981">
+    <div class="card-header">
+      <span class="card-icon">🚀</span>
+      <span class="card-title">Deployment</span>
+    </div>
+    <ul class="step-list">
+      <li><div class="step-dot"></div>GitOps: ArgoCD / Flux syncs manifests</li>
+      <li><div class="step-dot"></div>Rolling or blue-green deployment</li>
+      <li><div class="step-dot"></div>Canary with traffic shifting (5% → 100%)</li>
+      <li><div class="step-dot"></div>Automatic rollback on error spike</li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- ── Metrics ── -->
+<div class="section-header">Key DORA Metrics</div>
+<div class="metrics-row">
+  <div class="metric-card" style="--metric-color:#10b981">
+    <span class="metric-value">< 1hr</span>
+    <span class="metric-label">Lead Time</span>
+  </div>
+  <div class="metric-card" style="--metric-color:#3b82f6">
+    <span class="metric-value">15/day</span>
+    <span class="metric-label">Deploy Freq</span>
+  </div>
+  <div class="metric-card" style="--metric-color:#f59e0b">
+    <span class="metric-value">< 5min</span>
+    <span class="metric-label">MTTR</span>
+  </div>
+  <div class="metric-card" style="--metric-color:#8b5cf6">
+    <span class="metric-value">< 5%</span>
+    <span class="metric-label">Change Fail %</span>
+  </div>
+  <div class="metric-card" style="--metric-color:#06b6d4">
+    <span class="metric-value">99.9%</span>
+    <span class="metric-label">Availability</span>
+  </div>
+</div>
+
+<!-- ── Tools ── -->
+<div class="section-header">Common Toolchain</div>
+<div class="tools-grid">
+  <div class="tool-badge" style="--tool-color:#3b82f6"><div class="tool-dot"></div>GitHub Actions</div>
+  <div class="tool-badge" style="--tool-color:#3b82f6"><div class="tool-dot"></div>GitLab CI</div>
+  <div class="tool-badge" style="--tool-color:#06b6d4"><div class="tool-dot"></div>Jenkins</div>
+  <div class="tool-badge" style="--tool-color:#06b6d4"><div class="tool-dot"></div>CircleCI</div>
+  <div class="tool-badge" style="--tool-color:#8b5cf6"><div class="tool-dot"></div>ArgoCD</div>
+  <div class="tool-badge" style="--tool-color:#8b5cf6"><div class="tool-dot"></div>Flux CD</div>
+  <div class="tool-badge" style="--tool-color:#f59e0b"><div class="tool-dot"></div>Terraform</div>
+  <div class="tool-badge" style="--tool-color:#f59e0b"><div class="tool-dot"></div>Helm</div>
+  <div class="tool-badge" style="--tool-color:#ec4899"><div class="tool-dot"></div>Docker</div>
+  <div class="tool-badge" style="--tool-color:#ec4899"><div class="tool-dot"></div>Kubernetes</div>
+  <div class="tool-badge" style="--tool-color:#10b981"><div class="tool-dot"></div>Datadog</div>
+  <div class="tool-badge" style="--tool-color:#10b981"><div class="tool-dot"></div>Prometheus</div>
+  <div class="tool-badge" style="--tool-color:#ef4444"><div class="tool-dot"></div>Snyk</div>
+  <div class="tool-badge" style="--tool-color:#ef4444"><div class="tool-dot"></div>Trivy</div>
+  <div class="tool-badge" style="--tool-color:#64748b"><div class="tool-dot"></div>SonarQube</div>
+  <div class="tool-badge" style="--tool-color:#64748b"><div class="tool-dot"></div>Vault (secrets)</div>
+</div>
+
+<footer>CI/CD Pipeline Reference · Built for modern cloud-native teams</footer>
+
+</body>
+</html>
