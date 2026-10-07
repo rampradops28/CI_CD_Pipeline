@@ -1,0 +1,91 @@
+name: Reusable Python & Docker Pipeline
+
+# 🔑 Trigger: Callable by any repository/workflow
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        description: "Python version to use"
+        required: false
+        type: string
+        default: "3.11"
+      min-coverage:
+        description: "Minimum code coverage required to pass (percentage)"
+        required: false
+        type: number
+        default: 80
+      image-name:
+        description: "Docker image tag name"
+        required: false
+        type: string
+        default: "app"
+      app-port:
+        description: "Port the container exposes and listens on"
+        required: false
+        type: number
+        default: 8000
+      health-endpoint:
+        description: "Endpoint path to verify container health"
+        required: false
+        type: string
+        default: "/health"
+
+jobs:
+  # ==========================================================
+  # JOB 1: Test & Code Coverage
+  # ==========================================================
+  test:
+    name: Run Tests & Check Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout caller code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ inputs.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Pytest with Coverage Gate
+        run: |
+          pytest --cov=app --cov-report=term-missing --cov-fail-under=${{ inputs.min-coverage }}
+
+  # ==========================================================
+  # JOB 2: Docker Build & Smoke Test
+  # ==========================================================
+  docker-build:
+    name: Build & Verify Docker Image
+    needs: test                     # Runs only if tests & coverage pass
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout caller code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        run: |
+          docker build -t ${{ inputs.image-name }}:latest .
+
+      - name: Verify Container Runs (Smoke Test)
+        run: |
+          # 1. Start the container in background
+          docker run -d --name test-container -p ${{ inputs.app-port }}:${{ inputs.app-port }} ${{ inputs.image-name }}:latest
+          
+          # 2. Wait for server to initialize
+          sleep 3
+          
+          # 3. Hit the health endpoint
+          curl --fail http://localhost:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+          
+          # 4. Cleanup
+          docker stop test-container
