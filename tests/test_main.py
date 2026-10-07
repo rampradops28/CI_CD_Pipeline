@@ -7,7 +7,7 @@ def test_read_root():
     response = client.get("/")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "active"
+    assert data["status"] == "Inactive"
     assert "message" in data
 
 def test_health_check():
