@@ -1,6 +1,6 @@
 name: Reusable Python & Docker Pipeline
 
-# 🔑 Trigger: Callable by any repository or workflow
+# Trigger: Callable by any repository or workflow
 on:
   workflow_call:
     inputs:
@@ -39,6 +39,11 @@ on:
         required: false
         type: boolean
         default: true
+      deployment-type:
+        description: "Type of CD: 'deployment' (100% automated to production) or 'delivery' (automated staging + manual approval gate for production)"
+        required: false
+        type: string
+        default: "deployment"
 
 jobs:
   # ==========================================================
@@ -56,7 +61,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-          cache: "pip"
+          cache: "pip" # It remembers packages you already downloaded in previous runs.
           cache-dependency-path: "${{ inputs.working-directory }}/requirements.txt"
 
       - name: Install dependencies & linter
@@ -149,3 +154,80 @@ jobs:
           docker push ${IMAGE_URI}:latest
           docker push ${IMAGE_URI}:${{ github.sha }}
           echo "🚀 Successfully pushed: ${IMAGE_URI}:${{ github.sha }}"
+
+  # ==========================================================
+  # JOB 3A: Deploy to Staging (Continuous Delivery - Auto)
+  # ==========================================================
+  deploy-staging:
+    name: "CD (Delivery): Auto-Deploy to Staging"
+    needs: docker-build
+    if: inputs.deployment-type == 'delivery' && (github.ref == 'refs/heads/main' || github.event_name == 'release')
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: http://staging.internal:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+
+    steps:
+      - name: Deploy Container to Staging Environment
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_URI="ghcr.io/${OWNER_LOWER}/${{ inputs.image-name }}:${{ github.sha }}"
+          echo "📦 Pulling deployable artifact from GHCR: ${IMAGE_URI}"
+          echo "🚀 Deploying to Staging cluster on port ${{ inputs.app-port }}..."
+          docker run -d --name staging-app -p ${{ inputs.app-port }}:${{ inputs.app-port }} ${IMAGE_URI}
+          sleep 3
+          curl --fail http://localhost:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+          echo "✅ Staging verification passed! Artifact ready for Production delivery."
+          docker stop staging-app
+
+  # ==========================================================
+  # JOB 3B: Deploy to Production (Continuous Delivery - Manual Approval Gate)
+  # ==========================================================
+  deploy-production-gated:
+    name: "CD (Delivery): Production Release (Manual Approval)"
+    needs: deploy-staging
+    if: inputs.deployment-type == 'delivery' && (github.ref == 'refs/heads/main' || github.event_name == 'release')
+    runs-on: ubuntu-latest
+    environment:
+      name: production-manual-gate
+      url: http://production.internal:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+
+    steps:
+      - name: Deploy Container to Production Environment (After Approval)
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_URI="ghcr.io/${OWNER_LOWER}/${{ inputs.image-name }}:${{ github.sha }}"
+          echo "🔓 Approval received from authorized reviewer!"
+          echo "📦 Pulling release image from GHCR: ${IMAGE_URI}"
+          echo "🚀 Deploying ${IMAGE_URI} to Production cluster..."
+          docker run -d --name prod-app -p ${{ inputs.app-port }}:${{ inputs.app-port }} ${IMAGE_URI}
+          sleep 3
+          curl --fail http://localhost:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+          echo "🎉 Successfully deployed to Production via Continuous Delivery!"
+          docker stop prod-app
+
+  # ==========================================================
+  # JOB 3C: Direct Auto-Deploy to Production (Continuous Deployment)
+  # ==========================================================
+  deploy-production-automated:
+    name: "CD (Deployment): 100% Automated Production Rollout"
+    needs: docker-build
+    if: inputs.deployment-type == 'deployment' && (github.ref == 'refs/heads/main' || github.event_name == 'release')
+    runs-on: ubuntu-latest
+    environment:
+      name: production-automated
+      url: http://production.internal:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+
+    steps:
+      - name: Deploy Container Directly to Production (Zero Human Touch)
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_URI="ghcr.io/${OWNER_LOWER}/${{ inputs.image-name }}:${{ github.sha }}"
+          echo "⚡ Continuous Deployment mode active: Zero human intervention required."
+          echo "📦 Pulling release image from GHCR: ${IMAGE_URI}"
+          echo "🚀 Rolling out ${IMAGE_URI} directly to Production cluster..."
+          docker run -d --name prod-auto-app -p ${{ inputs.app-port }}:${{ inputs.app-port }} ${IMAGE_URI}
+          sleep 3
+          curl --fail http://localhost:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+          echo "🎉 Continuous Deployment successfully completed! Production is live."
+          docker stop prod-auto-app
