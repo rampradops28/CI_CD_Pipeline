@@ -1,10 +1,14 @@
-name: Multi-Project CI Pipeline
+name: Multi-Project CI/CD Pipeline
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   # ==========================================================
@@ -21,6 +25,7 @@ jobs:
       image-name: "learning-service"
       app-port: 8000
       health-endpoint: "/health"
+      push-image: true
 
   # ==========================================================
   # PROJECT 2: Order Service (services/order_service)
@@ -36,3 +41,4 @@ jobs:
       image-name: "order-service"
       app-port: 8080
       health-endpoint: "/healthz"
+      push-image: true
