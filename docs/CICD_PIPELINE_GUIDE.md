@@ -31,7 +31,7 @@ flowchart TD
             C5 --> C6["Upload HTML Coverage Artifact (htmlcov)"]
         end
 
-        subgraph CD["Job 2: Build, Verify & Deliver (needs: test)"]
+        subgraph CD_BUILD["Job 2: Build, Verify & Publish (needs: test)"]
             B1["Setup Docker Buildx"] --> B2["Build Docker Image"]
             B2 --> B3["Runtime Smoke Test (curl :port/health)"]
             B3 --> B4["Trivy Vulnerability Scan (CVE Audit)"]
@@ -39,12 +39,18 @@ flowchart TD
             B5 --> B6["Tag & Push OCI Image (:latest & :sha)"]
         end
 
-        CI --> CD
-    end
+        subgraph PATH_DELIVERY["Continuous Delivery Path (order_service)"]
+            D1["Job 3A: Auto-Deploy to Staging<br>(env: staging)"] --> D2{"Job 3B: Manual Review Gate<br>(env: production-manual-gate)"}
+            D2 -->|"Reviewer Approves"| D3["Deploy to Production"]
+        end
 
-    subgraph Registry["4. Production Delivery (GHCR)"]
-        P1["ghcr.io/rampradops28/learning-service:latest"]
-        P2["ghcr.io/rampradops28/order-service:latest"]
+        subgraph PATH_DEPLOYMENT["Continuous Deployment Path (learning_service)"]
+            DP1["Job 3C: 100% Automated Rollout<br>(env: production-automated)"]
+        end
+
+        CI --> CD_BUILD
+        CD_BUILD --> PATH_DELIVERY
+        CD_BUILD --> PATH_DEPLOYMENT
     end
 
     DEV --> Orchestrator
@@ -283,6 +289,117 @@ jobs:
 
 ---
 
+### 4. Job 3A: `deploy-staging` (Continuous Delivery - Auto-Deploy to Staging)
+
+When `deployment-type: "delivery"` is passed, the pipeline runs this job immediately after Job 2 publishes the container:
+
+```yaml
+  deploy-staging:
+    name: "CD (Delivery): Auto-Deploy to Staging"
+    needs: docker-build
+    if: inputs.deployment-type == 'delivery' && (github.ref == 'refs/heads/main' || github.event_name == 'release')
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: http://staging.internal:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+
+    steps:
+      - name: Deploy Container to Staging Environment
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_URI="ghcr.io/${OWNER_LOWER}/${{ inputs.image-name }}:${{ github.sha }}"
+          docker run -d --name staging-app -p ${{ inputs.app-port }}:${{ inputs.app-port }} ${IMAGE_URI}
+          sleep 3
+          curl --fail http://localhost:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+          docker stop staging-app
+```
+
+#### What Happens:
+* Deploys the newly published image (`ghcr.io/<owner>/order-service:<sha>`) directly into the **Staging environment**.
+* Automatically verifies that the staging deployment is responsive and passes health checks.
+* Sets up a verified deployable candidate ready for human sign-off.
+
+---
+
+### 5. Job 3B: `deploy-production-gated` (Continuous Delivery - Manual Approval Gate)
+
+This is the hallmark of **Continuous Delivery**. The pipeline **pauses** and enters a `waiting` state, requiring an authorized team lead or DevOps engineer to click **"Review deployments" -> "Approve and deploy"**:
+
+```yaml
+  deploy-production-gated:
+    name: "CD (Delivery): Production Release (Manual Approval)"
+    needs: deploy-staging
+    if: inputs.deployment-type == 'delivery' && (github.ref == 'refs/heads/main' || github.event_name == 'release')
+    runs-on: ubuntu-latest
+    environment:
+      name: production-manual-gate
+      url: http://production.internal:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+
+    steps:
+      - name: Deploy Container to Production Environment (After Approval)
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_URI="ghcr.io/${OWNER_LOWER}/${{ inputs.image-name }}:${{ github.sha }}"
+          echo "🚀 Approval received from authorized reviewer!"
+          docker run -d --name prod-app -p ${{ inputs.app-port }}:${{ inputs.app-port }} ${IMAGE_URI}
+          sleep 3
+          curl --fail http://localhost:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+          docker stop prod-app
+```
+
+#### What Happens:
+* **GitHub Environment Protection Rule**: Bound to the GitHub environment `production-manual-gate`.
+* Execution stops and waits indefinitely (or until timeout) for approval.
+* Once approved, the runner spins up and executes the production rollout.
+
+---
+
+### 6. Job 3C: `deploy-production-automated` (Continuous Deployment - 100% Automated Rollout)
+
+When `deployment-type: "deployment"` is selected (used by `learning_service`), all intermediate stops and human gates are bypassed:
+
+```yaml
+  deploy-production-automated:
+    name: "CD (Deployment): 100% Automated Production Rollout"
+    needs: docker-build
+    if: inputs.deployment-type == 'deployment' && (github.ref == 'refs/heads/main' || github.event_name == 'release')
+    runs-on: ubuntu-latest
+    environment:
+      name: production-automated
+      url: http://production.internal:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+
+    steps:
+      - name: Deploy Container Directly to Production (Zero Human Touch)
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_URI="ghcr.io/${OWNER_LOWER}/${{ inputs.image-name }}:${{ github.sha }}"
+          echo "⚡ Continuous Deployment mode active: Zero human intervention required."
+          docker run -d --name prod-auto-app -p ${{ inputs.app-port }}:${{ inputs.app-port }} ${IMAGE_URI}
+          sleep 3
+          curl --fail http://localhost:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+          docker stop prod-auto-app
+```
+
+#### What Happens:
+* As soon as Job 2 publishes the container to GHCR, Job 3C runs immediately.
+* Rolls out the update to production without any human approval or delay.
+
+---
+
+### 7. Continuous Delivery vs. Continuous Deployment: Deep Dive & Comparison
+
+| Dimension | Continuous Delivery (CD) | Continuous Deployment (CD) |
+| :--- | :--- | :--- |
+| **Microservice in Repo** | `order_service` (Critical Business/Financial Data) | `learning_service` (Experimental/Fast-Moving API) |
+| **Pipeline Input** | `deployment-type: "delivery"` | `deployment-type: "deployment"` |
+| **Staging Deployment** | **Automated** (Job 3A) | Skipped (or integrated into direct deployment) |
+| **Production Rollout** | **Manual Approval Gate** (Job 3B pauses & waits for review) | **100% Automated** (Job 3C deploys immediately) |
+| **Human Decision Point** | **Yes**: Business, QA, or Product Lead sign-off | **No**: Zero human touch |
+| **GitHub Action State** | Shows `Waiting for review` with review modal | Shows green checkmark `Completed` immediately |
+| **Typical Industry Use Case** | Payments, Checkout, Banking, Healthcare APIs | Content sites, internal tools, micro-APIs, feature-flagged apps |
+
+---
+
 ## 4. The Orchestrator / Caller (`ci.yml`)
 
 The caller workflow binds the microservices together and runs them in parallel:
@@ -303,10 +420,11 @@ permissions:
 jobs:
   # ==========================================================
   # PROJECT 1: Learning Service (services/learning_service)
+  # MODEL: CONTINUOUS DEPLOYMENT (100% Automated to Production)
   # Uses Python 3.11, Port 8000, /health route, 80% coverage
   # ==========================================================
   learning-service-ci:
-    name: "Project 1: Learning Service"
+    name: "Project 1: Learning Service (Continuous Deployment)"
     uses: ./.github/workflows/reusable-pipeline.yml
     with:
       working-directory: "services/learning_service"
@@ -316,13 +434,15 @@ jobs:
       app-port: 8000
       health-endpoint: "/health"
       push-image: true
+      deployment-type: "deployment"
 
   # ==========================================================
   # PROJECT 2: Order Service (services/order_service)
+  # MODEL: CONTINUOUS DELIVERY (Automated Staging + Manual Approval Gate)
   # Uses Python 3.11, Port 8080, /healthz route, 85% coverage
   # ==========================================================
   order-service-ci:
-    name: "Project 2: Order Service"
+    name: "Project 2: Order Service (Continuous Delivery)"
     uses: ./.github/workflows/reusable-pipeline.yml
     with:
       working-directory: "services/order_service"
@@ -332,6 +452,7 @@ jobs:
       app-port: 8080
       health-endpoint: "/healthz"
       push-image: true
+      deployment-type: "delivery"
 ```
 
 ---
@@ -449,6 +570,22 @@ curl http://localhost:8080/healthz
 # Interactive API Docs
 # Open http://localhost:8080/docs
 ```
+
+---
+
+### 4. Approving Gated Production Releases in GitHub Actions UI
+
+When `order_service` executes its Continuous Delivery pipeline:
+1. Navigate to GitHub: **Actions** -> Select the active workflow run.
+2. In the workflow graph, notice `CD (Delivery): Production Release (Manual Approval)` has an amber/yellow icon with label **"Waiting for review"**.
+3. At the top of the workflow page, a notification banner displays:
+   > **1 environment waiting for review: production-manual-gate**
+4. Click the **"Review deployments"** button.
+5. In the modal dialog:
+   - Check the checkbox next to **`production-manual-gate`**.
+   - (Optional) Add a comment: *"Staging verified, approving production release."*
+   - Click the green button: **"Approve and deploy"**.
+6. The job immediately activates, pulls the container from GHCR, and finishes the production rollout!
 
 ---
 

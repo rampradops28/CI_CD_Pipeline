@@ -42,30 +42,46 @@ CI_CD_Pipeline/
 
 ---
 
-## 🔄 How the CI/CD Pipeline Works
+## 🔄 Continuous Delivery vs. Continuous Deployment (In Action)
 
-When you push code to GitHub, **two independent jobs start in parallel**:
+This repository demonstrates the real-world operational difference between **Continuous Delivery** and **Continuous Deployment** side-by-side:
 
-```text
-                          ┌───────────────────────────┐
-                          │         git push          │
-                          └─────────────┬─────────────┘
-                                        │
-                 ┌──────────────────────┴──────────────────────┐
-                 ▼                                             ▼
-  ┌───────────────────────────────┐             ┌───────────────────────────────┐
-  │  Job 1: Learning Service CI   │             │   Job 2: Order Service CI     │
-  └──────────────┬────────────────┘             └──────────────┬────────────────┘
-                 │                                             │
-                 │ Calls reusable-pipeline.yml                 │ Calls reusable-pipeline.yml
-                 ▼                                             ▼
-  1. Checkout code                              1. Checkout code
-  2. Setup Python 3.11                          2. Setup Python 3.11
-  3. Install dependencies                       3. Install dependencies
-  4. Run Pytest (Must be > 80% coverage)        4. Run Pytest (Must be > 85% coverage)
-  5. Build Docker Image (fastapi-app:latest)    5. Build Docker Image (order-service:latest)
-  6. Smoke Test (curl :8000/health)             6. Smoke Test (curl :8080/healthz)
 ```
+                            ┌────────────────────────────────┐
+                            │          git push main         │
+                            └───────────────┬────────────────┘
+                                            │
+                    ┌───────────────────────┴───────────────────────┐
+                    │                                               │
+                    ▼                                               ▼
+     ┌──────────────────────────────┐                ┌──────────────────────────────┐
+     │ Project 1: Learning Service  │                │   Project 2: Order Service   │
+     │   (CONTINUOUS DEPLOYMENT)    │                │    (CONTINUOUS DELIVERY)     │
+     └──────────────┬───────────────┘                └──────────────┬───────────────┘
+                    │                                               │
+     1. Lint & Pytest Coverage (>80%)                1. Lint & Pytest Coverage (>85%)
+     2. Build, Smoke Test & Trivy                    2. Build, Smoke Test & Trivy
+     3. Publish to GHCR                              3. Publish to GHCR
+                    │                                               │
+                    │                                4. Auto-Deploy to Staging
+                    │                                               │
+                    │                                5. ⏸️ MANUAL APPROVAL GATE
+                    │                                   (Requires human sign-off)
+                    │                                               │
+                    ▼                                               ▼
+     4. ⚡ 100% Automated Rollout                    6. 🚀 Production Release
+        Direct to Production                            (After review approval)
+```
+
+### Key Differences Matrix:
+
+| Dimension | Continuous Delivery (CD) | Continuous Deployment (CD) |
+| :--- | :--- | :--- |
+| **Service** | `order_service` | `learning_service` |
+| **Philosophy** | Always *ready* to deploy, released with human business sign-off | Every green commit is immediately live to end users |
+| **Staging** | Deployed automatically for testing & verification | Skipped / direct to production |
+| **Production Gate** | **Manual Review Gate** (GitHub Environment Protection) | **Zero-Touch Automation** (100% hands-free) |
+| **Best For** | Financial transactions, orders, billing, core infrastructure | Fast-moving APIs, internal tools, micro-features |
 
 ---
 
@@ -82,6 +98,8 @@ Accepts configurable inputs so any microservice can use it:
 | `image-name` | Name tag for the Docker image | `app` | `order-service` |
 | `app-port` | Port exposed by the container | `8000` | `8080` |
 | `health-endpoint` | Route checked during smoke test | `/health` | `/healthz` |
+| `push-image` | Publish Docker image to GHCR | `true` | `true` |
+| `deployment-type` | Type of CD: `'deployment'` (automated) or `'delivery'` (staged + manual gate) | `deployment` | `delivery` |
 
 ### 2. The Strict Quality Gate
 ```bash
