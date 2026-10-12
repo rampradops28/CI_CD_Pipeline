@@ -1,25 +1,13 @@
-# Enterprise CI/CD & Delivery Engineering Manual
-### FastAPI Microservices, Reusable GitHub Actions, Docker OCI & Multi-Strategy Deployment
+# CI/CD Pipeline User Manual
+### Automated Testing, Containerization & Delivery to GitHub Container Registry (GHCR)
 
 ---
 
-## Document Control & System Specifications
+## 1. Overview & Architecture
 
-| Specification | Details |
-| :--- | :--- |
-| **System** | Reusable Multi-Project CI/CD Platform |
-| **Runtime Target** | Python 3.11 / FastAPI / Docker Linux OCI |
-| **CI/CD Engine** | GitHub Actions Reusable Workflows (`reusable-pipeline.yml`) |
-| **Artifact Registry** | GitHub Container Registry (`ghcr.io`) |
-| **Target Workspaces** | `services/learning_service`, `services/order_service` |
-| **Deployment Strategies** | Continuous Delivery (Manual Gate) & Continuous Deployment (Zero-Touch) |
-| **Security Auditing** | Ruff Linter, Trivy Container Scanner, Pytest Coverage Fail-Under |
+This manual describes the automated release pipeline for microservices in this repository. The platform automates every step from the moment a developer commits code up to publishing production-ready Docker containers to GitHub Container Registry (GHCR) and managing release rollouts.
 
----
-
-## 1. High-Level Release Lifecycle Architecture
-
-Every code change committed to the repository undergoes an automated multi-stage pipeline. The delivery and deployment flow is illustrated below:
+### Release Flowchart
 
 ```mermaid
 flowchart TD
@@ -34,387 +22,158 @@ flowchart TD
     G --> I
 ```
 
-### Architectural Flowchart Breakdown
+---
 
-1. **`Git Push`**: Developer pushes a commit or creates a Pull Request targeted at the `main` branch.
-2. **`Tests`**: Code quality is validated through syntax linting (Ruff), unit testing (Pytest), and strict coverage enforcement (`--cov-fail-under`).
-3. **`Build Docker Image`**: An immutable Linux OCI container is built and verified via a live local runtime smoke test (`curl --fail`).
-4. **`Push Image to GHCR`**: Trivy audits vulnerabilities, and the verified image is published to GitHub Container Registry (`ghcr.io`).
-5. **`Release configuration`**: The pipeline branches based on the `deployment-type` parameter:
-   * **`Continuous Delivery`** (`order_service`): Deploys automatically to Staging, then pauses at an **Approval Gate** awaiting human authorization.
-   * **`Continuous Deployment`** (`learning_service`): Completely automated, zero-touch rollout directly to Production.
-6. **`Deploy to Production`**: The production environment is updated with the verified release artifact.
+## 2. Stage 1: Git Push & Triggering
+
+### How It Works:
+Whenever a developer pushes changes to the `main` branch or opens a Pull Request:
+1. GitHub Actions detects the event and automatically initializes the pipeline.
+2. Both microservices (`learning_service` and `order_service`) are evaluated in parallel on separate, isolated cloud environments.
+
+### What Developers Need to Know:
+* **Pushing to `main`**: Executes the complete pipeline: Tests ➔ Docker Build ➔ Smoke Testing ➔ Vulnerability Scan ➔ GHCR Publishing ➔ Deployment.
+* **Pull Requests**: Executes validation stages only (Tests ➔ Docker Build & Smoke Test) to ensure code does not break the build before merging. Container images are **not** published to GHCR on unmerged PRs.
 
 ---
 
-## 2. Deep Dive: Core Pipeline Stages (Git Push to GHCR & Production)
+## 3. Stage 2: Automated Tests & Quality Gates
 
-### Stage 1: Git Push & Event Triggering
-The workflow is triggered via GitHub events defined in `.github/workflows/ci.yml`:
-* **`push` on `main`**: Runs the complete CI pipeline, publishes the container to GHCR, and executes the designated deployment strategy.
-* **`pull_request` on `main`**: Runs linting, tests, coverage verification, and Docker build/smoke tests. Container publishing to GHCR is safely skipped on unmerged PRs.
+### Purpose:
+Ensure only clean, compliant, and thoroughly tested code can progress. If any test or quality check fails, the pipeline immediately halts and prevents container creation.
 
-```yaml
-permissions:
-  contents: read      # Read repository source code
-  packages: write     # Publish OCI container packages to GHCR
-```
-
----
-
-### Stage 2: Automated Tests & Quality Gates (`Job 1: test`)
-
-Before any Docker image is built, the code must pass three non-negotiable quality barriers in an isolated runner:
-
-```yaml
-  test:
-    name: Lint, Test & Coverage
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout caller code
-        uses: actions/checkout@v4
-
-      - name: Set up Python ${{ inputs.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ inputs.python-version }}
-          cache: "pip"
-          cache-dependency-path: "${{ inputs.working-directory }}/requirements.txt"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r ${{ inputs.working-directory }}/requirements.txt
-
-      - name: Lint with Ruff (Fail fast on syntax/style issues)
-        working-directory: ${{ inputs.working-directory }}
-        run: |
-          ruff check .
-
-      - name: Run Pytest with HTML Coverage Report
-        working-directory: ${{ inputs.working-directory }}
-        run: |
-          pytest tests/ --import-mode=importlib --cov=app --cov-report=term-missing --cov-report=html:htmlcov --cov-fail-under=${{ inputs.min-coverage }}
-
-      - name: Upload Test Coverage Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report-${{ inputs.image-name }}
-          path: ${{ inputs.working-directory }}/htmlcov/
-```
-
-#### Quality Gate Specifications:
-1. **Pip Caching (`cache: "pip"`)**: Reuses cached Python wheels across workflow runs, cutting setup time from ~40s to ~3s.
-2. **Fast Linting with Ruff (`ruff check .`)**: Validates PEP 8 rules, unused imports, syntax errors, and isort conventions in milliseconds. If any violation exists, the pipeline halts immediately.
-3. **Strict Coverage Threshold (`--cov-fail-under`)**:
-   * `learning_service`: Enforces **80% minimum coverage**.
-   * `order_service`: Enforces **85% minimum coverage**.
-   * If a developer adds business logic without unit tests, Pytest exits with status code `1`, preventing Docker builds.
-4. **HTML Coverage Reports**: Uploaded as workflow artifacts so developers can download and inspect uncoverable lines locally.
+### What Happens in This Stage:
+1. **Dependency Installation**: The pipeline sets up Python 3.11 and installs project dependencies from `requirements.txt` using high-speed pip caching.
+2. **Code Linting (Ruff)**:
+   * Analyzes all Python files in milliseconds.
+   * Validates PEP 8 rules, unused imports, bad syntax, and proper import ordering (`isort`).
+   * If any formatting or syntax error exists, the build stops immediately.
+3. **Unit & Integration Testing (Pytest)**:
+   * Executes the entire test suite inside the service's `tests/` directory.
+   * Every test must pass with a green checkmark (0 failures allowed).
+4. **Code Coverage Enforcement (`--cov-fail-under`)**:
+   * Measures the exact percentage of application code exercised by tests.
+   * **`learning_service` threshold**: Must achieve at least **80% coverage**.
+   * **`order_service` threshold**: Must achieve at least **85% coverage**.
+   * If coverage falls even 1% below the threshold, Pytest exits with an error and blocks the build.
+5. **Coverage Report Generation**:
+   * Generates an interactive HTML report (`htmlcov`).
+   * Uploaded as a downloadable artifact in the GitHub Actions run summary so developers can inspect uncoverable lines locally.
 
 ---
 
-### Stage 3: Container Engineering & Smoke Testing (`Job 2: docker-build`)
+## 4. Stage 3: Build Docker Image & Runtime Verification
 
-A green test suite guarantees business logic, but container runtime failures (missing dependencies, unexposed ports, broken entrypoints) can still occur. Job 2 compiles and executes a real-world container test:
+### Purpose:
+Verify that the application does not just pass unit tests, but successfully compiles into a Linux OCI container and boots up without runtime crashes.
 
-```yaml
-      - name: Build Docker Image
-        working-directory: ${{ inputs.working-directory }}
-        run: |
-          docker build -t ${{ inputs.image-name }}:latest .
-
-      - name: Verify Container Runs (Smoke Test)
-        run: |
-          # 1. Start container on the runner
-          docker run -d --name test-container -p ${{ inputs.app-port }}:${{ inputs.app-port }} ${{ inputs.image-name }}:latest
-          
-          # 2. Wait 3 seconds for Uvicorn server initialization
-          sleep 3
-          
-          # 3. Hit health endpoint using HTTP GET
-          curl --fail http://localhost:${{ inputs.app-port }}${{ inputs.health-endpoint }}
-          
-          # 4. Clean up container
-          docker stop test-container
-          docker rm test-container
-```
-
-* **Smoke Test Verification**: Starts the newly built container, curls `http://localhost:<port><endpoint>`, and fails the build if the endpoint does not return HTTP 200.
+### What Happens in This Stage:
+1. **Container Image Build**:
+   * Assembles a container image using the service's `Dockerfile`.
+   * Packages Python 3.11 slim runtime, application dependencies, and FastAPI source code.
+2. **Automated Runtime Smoke Test**:
+   * Starts the newly built container in background on the runner.
+   * Waits 3 seconds for the Uvicorn ASGI web server to initialize.
+   * Sends an automated HTTP GET health check request:
+     * `learning_service`: `http://localhost:8000/health`
+     * `order_service`: `http://localhost:8080/healthz`
+   * **Strict Failure Gate**: If the server returns anything other than `HTTP 200 OK` (e.g., container crash on boot, missing environment variable, port binding error), the smoke test fails and terminates the run.
+3. **Container Security Audit (Trivy)**:
+   * Scans both the Linux base image layers and all Python packages for Known Vulnerabilities and Exposures (CVEs).
+   * Generates a security audit table in the pipeline logs highlighting Critical and High severity issues.
 
 ---
 
-### Stage 4: Container Security Vulnerability Scanning (Trivy)
+## 5. Stage 4: Push Image to GHCR (GitHub Container Registry)
 
-Before any image is pushed to the enterprise registry, it is scanned for Common Vulnerabilities and Exposures (CVEs) across operating system packages and application dependencies:
+### Purpose:
+Store verified, production-ready container images in a centralized, secure enterprise registry for deployment to any cloud provider or server cluster.
 
-```yaml
-      - name: Scan Docker Image for Vulnerabilities (Trivy)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ inputs.image-name }}:latest
-          format: "table"
-          exit-code: "0" # Audit mode: reports CVEs in pipeline logs
-          severity: "CRITICAL,HIGH"
-```
-
-* Scans the base image (Debian/Alpine) and installed Python packages.
-* Outputs tabular reports of CVEs directly into pipeline logs.
-
----
-
-### Stage 5: Publishing to GitHub Container Registry (GHCR)
-
-Once all quality and security gates pass, the container is published to GitHub Container Registry:
-
-```yaml
-      - name: Log in to GitHub Container Registry (GHCR)
-        if: inputs.push-image && (github.ref == 'refs/heads/main' || github.event_name == 'release')
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Tag and Publish Image to GHCR (Continuous Delivery)
-        if: inputs.push-image && (github.ref == 'refs/heads/main' || github.event_name == 'release')
-        run: |
-          # Lowercase repository owner for OCI registry compliance
-          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          IMAGE_URI="ghcr.io/${OWNER_LOWER}/${{ inputs.image-name }}"
-          
-          docker tag ${{ inputs.image-name }}:latest ${IMAGE_URI}:latest
-          docker tag ${{ inputs.image-name }}:latest ${IMAGE_URI}:${{ github.sha }}
-          
-          docker push ${IMAGE_URI}:latest
-          docker push ${IMAGE_URI}:${{ github.sha }}
-          echo "🚀 Successfully pushed: ${IMAGE_URI}:${{ github.sha }}"
-```
-
-#### The OCI Lowercase Compliance Mandate:
-The Open Container Initiative (OCI) specification strictly forbids uppercase characters in repository paths. If a GitHub username contains capital letters (e.g. `Rampradop`), running `docker push ghcr.io/Rampradop/...` crashes with:
-```text
-invalid reference format: repository name must be lowercase
-```
-The pipeline automatically converts the repository owner to lowercase using `tr '[:upper:]' '[:lower:]'`, ensuring builds never fail due to casing.
-
-#### Dual-Tagging Strategy:
-1. **`:latest`**: Dynamic tag pointing to the newest successful build on `main`.
-2. **`:${{ github.sha }}`**: Immutable tag mapped to the exact Git commit SHA. This allows instant rollback to any previous version.
+### What Happens in This Stage:
+1. **Automated Authentication**:
+   * Authenticates securely to `ghcr.io` using GitHub's built-in token (`GITHUB_TOKEN`).
+   * No manual passwords or third-party registry credentials are required.
+2. **OCI Lowercase Normalization**:
+   * The Open Container Initiative (OCI) strictly forbids capital letters in image names.
+   * The pipeline automatically converts repository owner names to lowercase (e.g., `Rampradop` ➔ `rampradop`) to avoid registry naming errors.
+3. **Dual-Tag Publishing**:
+   Every successful build publishes two distinct tags:
+   * **`:latest`**: Dynamic pointer to the newest release on `main`.
+   * **`:<git-commit-sha>`**: Immutable permanent tag mapped to the exact Git commit SHA. This guarantees full traceability and enables 1-click rollbacks to any prior release.
+4. **Registry Storage Locations**:
+   * Learning Service: `ghcr.io/<owner>/learning-service:latest`
+   * Order Service: `ghcr.io/<owner>/order-service:latest`
+   * Accessible under **GitHub ➔ Profile ➔ Packages**.
 
 ---
 
-### Stage 6: Release Configuration & Deployment Strategy
+## 6. Stage 5: Release Configuration & Deployment Strategy
 
-The pipeline supports two distinct operational release patterns controlled by `deployment-type`:
+Once the image is published to GHCR, the pipeline evaluates the service's release configuration:
 
-```
-                       ┌─────────────────────────┐
-                       │  Release Configuration  │
-                       └────────────┬────────────┘
-                                    │
-               ┌────────────────────┴────────────────────┐
-               ▼                                         ▼
-   ┌───────────────────────┐                 ┌───────────────────────┐
-   │  Continuous Delivery  │                 │ Continuous Deployment │
-   │    (order_service)    │                 │   (learning_service)  │
-   └───────────┬───────────┘                 └───────────┬───────────┘
-               │                                         │
-   1. Auto-Deploy to Staging                 1. 100% Automated Rollout
-   2. ⏸️ Manual Approval Gate                   Direct to Production
-   3. Reviewer Clicks Approve                            │
-   4. Deploy to Production                               │
-               │                                         │
-               └────────────────────┬────────────────────┘
-                                    ▼
-                         [ Deploy to Production ]
-```
+### Path A: Continuous Delivery (`order_service`)
+* **Philosophy**: Always deliverable to production, released only with human sign-off.
+* **Flow**:
+  1. Image is automatically deployed and verified on **Staging**.
+  2. Pipeline pauses at the **Approval Gate** (`production-manual-gate`).
+  3. GitHub Actions displays a **"Review deployments"** button with status `Waiting for review`.
+  4. An authorized reviewer inspects staging, clicks **Approve**, and triggers the production rollout.
 
-#### Strategy A: Continuous Delivery (`order_service`)
-* **Job 3A (`deploy-staging`)**: Automatically deploys the image to the `staging` environment.
-* **Job 3B (`deploy-production-gated`)**: Bound to GitHub Environment `production-manual-gate`. The workflow enters a `waiting` state, displaying a **"Review deployments"** button in GitHub Actions.
-* **Production Deployment**: Occurs **only** after an authorized team lead or engineer approves the release.
-
-#### Strategy B: Continuous Deployment (`learning_service`)
-* **Job 3C (`deploy-production-automated`)**: Bound to GitHub Environment `production-automated`.
-* As soon as Job 2 publishes the container to GHCR, Job 3C deploys directly to Production without human intervention.
+### Path B: Continuous Deployment (`learning_service`)
+* **Philosophy**: Fully automated from commit to production with zero human touch.
+* **Flow**:
+  1. Once the image is pushed to GHCR, it rolls out directly to **Production**.
+  2. Bypasses all manual gates and staging pauses.
+  3. Status in GitHub Actions displays green checkmark `Completed`.
 
 ---
 
-## 3. Comparison Matrix: Continuous Delivery vs. Continuous Deployment
+## 7. Operator Runbook: How to Access & Run Images from GHCR
 
-| Dimension | Continuous Delivery (CD) | Continuous Deployment (CD) |
-| :--- | :--- | :--- |
-| **Service in Repo** | `order_service` | `learning_service` |
-| **Pipeline Parameter** | `deployment-type: "delivery"` | `deployment-type: "deployment"` |
-| **Staging Environment** | **Automated** (Job 3A) | Skipped / Direct |
-| **Production Gate** | **Manual Review Gate** (Job 3B pauses & waits) | **Zero-Touch Automation** (Job 3C deploys instantly) |
-| **Human Decision Point** | **Yes**: QA, Product, or Lead sign-off | **No**: Zero human intervention |
-| **GitHub Actions UI** | Shows amber icon: `Waiting for review` | Shows green checkmark: `Completed` |
-| **Best Used For** | Payments, Billing, Orders, Core Financial APIs | Fast-moving APIs, internal tools, micro-features |
+Developers and operations teams can pull and execute any published image directly from GHCR onto any computer or server.
 
----
+### Step 1: Log In to GHCR Locally (One-Time Setup)
+1. Generate a GitHub **Personal Access Token (Classic)** with the `read:packages` scope.
+2. In your terminal, run:
+   ```bash
+   docker login ghcr.io -u <YOUR_GITHUB_USERNAME>
+   # Paste your token when prompted for password
+   ```
 
-## 4. Reusable Pipeline Engine Reference (`reusable-pipeline.yml`)
+### Step 2: Run Learning Service (Continuous Deployment)
+```bash
+# Pull the latest published image
+docker pull ghcr.io/<owner>/learning-service:latest
 
-The reusable pipeline acts like a parameterized template called by each microservice.
+# Run on port 8000
+docker run -d --name learning-api -p 8000:8000 ghcr.io/<owner>/learning-service:latest
 
-### Parameterized Inputs Table:
-
-| Input Parameter | Type | Required | Default | Description | Example |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `working-directory` | `string` | No | `"."` | Path to the service directory | `"services/order_service"` |
-| `python-version` | `string` | No | `"3.11"` | Python runtime version | `"3.11"` |
-| `min-coverage` | `number` | No | `80` | Minimum code coverage percentage | `85` |
-| `image-name` | `string` | No | `"app"` | Docker image name | `"order-service"` |
-| `app-port` | `number` | No | `8000` | Port container listens on | `8080` |
-| `health-endpoint` | `string` | No | `"/health"` | Health check endpoint path | `"/healthz"` |
-| `push-image` | `boolean` | No | `true` | Publish container to GHCR | `true` |
-| `deployment-type` | `string` | No | `"deployment"` | Deployment strategy (`"delivery"` or `"deployment"`) | `"delivery"` |
-
----
-
-## 5. Orchestrator Configuration (`ci.yml`)
-
-The caller workflow binds the microservices together and executes their pipelines in parallel:
-
-```yaml
-name: Multi-Project CI/CD Pipeline
-
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
-permissions:
-  contents: read
-  packages: write
-
-jobs:
-  # PROJECT 1: Learning Service (Continuous Deployment)
-  learning-service-ci:
-    name: "Project 1: Learning Service (Continuous Deployment)"
-    uses: ./.github/workflows/reusable-pipeline.yml
-    with:
-      working-directory: "services/learning_service"
-      python-version: "3.11"
-      min-coverage: 80
-      image-name: "learning-service"
-      app-port: 8000
-      health-endpoint: "/health"
-      push-image: true
-      deployment-type: "deployment"
-
-  # PROJECT 2: Order Service (Continuous Delivery)
-  order-service-ci:
-    name: "Project 2: Order Service (Continuous Delivery)"
-    uses: ./.github/workflows/reusable-pipeline.yml
-    with:
-      working-directory: "services/order_service"
-      python-version: "3.11"
-      min-coverage: 85
-      image-name: "order-service"
-      app-port: 8080
-      health-endpoint: "/healthz"
-      push-image: true
-      deployment-type: "delivery"
-```
-
----
-
-## 6. Operator Runbook & Verification Manual
-
-### 1. Authenticating Locally with GHCR
-To pull or test published images on your workstation or server:
-
-```powershell
-# 1. Create a GitHub Personal Access Token (Classic) with 'read:packages' scope
-# 2. Log in to GHCR via Docker CLI:
-docker login ghcr.io -u <YOUR_GITHUB_USERNAME>
-# Enter your PAT token when prompted for password
-```
-
-### 2. Pulling and Running Images Locally
-
-#### Service 1: Learning Service
-```powershell
-# Remove any conflicting stopped/running container
-docker rm -f learning-api
-
-# Pull the latest image published by CI/CD
-docker pull ghcr.io/rampradops28/learning-service:latest
-
-# Run container on port 8000
-docker run -d --name learning-api -p 8000:8000 ghcr.io/rampradops28/learning-service:latest
-
-# Test health and Swagger docs
+# Verify health and interactive Swagger docs
 curl http://localhost:8000/health
 # Open in browser: http://localhost:8000/docs
 ```
 
-#### Service 2: Order Service
-```powershell
-# Remove any conflicting stopped/running container
-docker rm -f order-api
+### Step 3: Run Order Service (Continuous Delivery)
+```bash
+# Pull the latest published image
+docker pull ghcr.io/<owner>/order-service:latest
 
-# Pull the latest image published by CI/CD
-docker pull ghcr.io/rampradops28/order-service:latest
+# Run on port 8080
+docker run -d --name order-api -p 8080:8080 ghcr.io/<owner>/order-service:latest
 
-# Run container on port 8080
-docker run -d --name order-api -p 8080:8080 ghcr.io/rampradops28/order-service:latest
-
-# Test health and Swagger docs
+# Verify health and interactive Swagger docs
 curl http://localhost:8080/healthz
 # Open in browser: http://localhost:8080/docs
 ```
 
-### 3. Approving Gated Production Releases in GitHub Actions UI
-1. Navigate to **Actions** in GitHub and select the active run.
-2. In the workflow graph, `CD (Delivery): Production Release (Manual Approval)` displays **"Waiting for review"**.
-3. In the yellow review banner at the top, click **"Review deployments"**.
-4. Check the box for **`production-manual-gate`**, enter an optional comment, and click **"Approve and deploy"**.
-5. GitHub Actions immediately spins up the production deployment job and completes the rollout.
-
 ---
 
-## 7. Connecting to Live Cloud Providers (e.g., Render)
+## 8. Troubleshooting Guide for Developers
 
-In GitHub Actions, the simulated `url: http://production.internal:...` is a placeholder. To deploy to a live public cloud like **Render**:
-
-1. In Render, create a Web Service pointing to `ghcr.io/rampradops28/order-service:latest`.
-2. Copy your **Deploy Hook URL** (`https://api.render.com/deploy/srv-xyz?key=abc`).
-3. Add it as a GitHub Secret: `RENDER_DEPLOY_HOOK_ORDER`.
-4. In `reusable-pipeline.yml`, trigger the webhook during production deployment:
-   ```yaml
-   - name: Trigger Render Cloud Rollout
-     run: |
-       curl -X POST "${{ secrets.render-deploy-hook }}"
-   ```
-5. Update `environment.url` to your real Render public domain:
-   ```yaml
-   environment:
-     name: production-manual-gate
-     url: https://order-service-rampradop.onrender.com/healthz
-   ```
-
----
-
-## 8. Operational Troubleshooting & Runbook FAQ
-
-| Symptom / Error | Root Cause | Solution |
+| Issue | Cause | Solution |
 | :--- | :--- | :--- |
-| `docker: Conflict. The container name "/learning-api" is already in use` | A previous stopped or running container is still holding the name. | Run `docker rm -f learning-api` before starting the container. |
-| `invalid reference format: repository name must be lowercase` | Docker and OCI registries forbid capital letters in image names. | Ensure image URI converts owner to lowercase: `OWNER_LOWER=$(echo "${{ github.repository_owner }}" \| tr '[:upper:]' '[:lower:]')`. |
-| `DNS_PROBE_FINISHED_NXDOMAIN` when clicking GitHub deployment link | The URL in `environment.url` is a placeholder (`.internal`) and has no public DNS entry. | Access the app locally via `http://localhost:<port>/docs` or configure a real cloud domain (e.g. Render). |
-| Pytest coverage failure (`Required test coverage of 85% not reached`) | New code was committed without corresponding unit tests. | Inspect `htmlcov/index.html` uploaded in GitHub artifacts to find uncovered lines, add tests, and push again. |
-| `.venv` in Git commits or Docker builds | Local virtual environment was untracked or included in build context. | Add `.venv/` to `.gitignore` and `.dockerignore`. Docker and CI build clean environments from `requirements.txt`. |
-
----
-
-## 9. Summary & Quick Reference
-
-* **Continuous Delivery** = Automated testing, building, staging deployment + **Manual Gate** before Production.
-* **Continuous Deployment** = 100% automated release from Git commit to Production with zero human touch.
-* **Published Artifacts** = Stored securely in `ghcr.io/rampradops28/<service-name>:latest` and `:<git-sha>`.
+| **Coverage Gate Fails** | Test coverage is below the minimum threshold (80% or 85%). | Download the `coverage-report-*` artifact from the GitHub Actions run summary, open `index.html` in a browser to see red uncovered lines, write tests for them, and push again. |
+| **Smoke Test Fails** | Container crashed on startup or health route did not return HTTP 200. | Check the `Verify Container Runs (Smoke Test)` step logs in GitHub Actions to see the Uvicorn traceback or startup error. |
+| **Port Conflict on Local Machine** | Container name (e.g. `/order-api`) is already in use by an existing container. | Run `docker rm -f order-api` before executing `docker run`. |
+| **`invalid reference format` on Image Push** | Registry repository names must be strictly lowercase. | The pipeline handles this automatically by sanitizing the repository owner name to lowercase before pushing to GHCR. |
+| **`.venv` in Git** | Local virtual environment was accidentally tracked. | Ensure `.venv/` is listed in `.gitignore`. Virtual environments are not needed in Git or Docker. |
