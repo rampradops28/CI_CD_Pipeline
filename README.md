@@ -46,31 +46,17 @@ CI_CD_Pipeline/
 
 This repository demonstrates the real-world operational difference between **Continuous Delivery** and **Continuous Deployment** side-by-side:
 
-```
-                            ┌────────────────────────────────┐
-                            │          git push main         │
-                            └───────────────┬────────────────┘
-                                            │
-                    ┌───────────────────────┴───────────────────────┐
-                    │                                               │
-                    ▼                                               ▼
-     ┌──────────────────────────────┐                ┌──────────────────────────────┐
-     │ Project 1: Learning Service  │                │   Project 2: Order Service   │
-     │   (CONTINUOUS DEPLOYMENT)    │                │    (CONTINUOUS DELIVERY)     │
-     └──────────────┬───────────────┘                └──────────────┬───────────────┘
-                    │                                               │
-     1. Lint & Pytest Coverage (>80%)                1. Lint & Pytest Coverage (>85%)
-     2. Build, Smoke Test & Trivy                    2. Build, Smoke Test & Trivy
-     3. Publish to GHCR                              3. Publish to GHCR
-                    │                                               │
-                    │                                4. Auto-Deploy to Staging
-                    │                                               │
-                    │                                5. ⏸️ MANUAL APPROVAL GATE
-                    │                                   (Requires human sign-off)
-                    │                                               │
-                    ▼                                               ▼
-     4. ⚡ 100% Automated Rollout                    6. 🚀 Production Release
-        Direct to Production                            (After review approval)
+```mermaid
+flowchart TD
+    A[Git Push] --> B[Tests]
+    B --> C[Build Docker Image]
+    C --> D[Push Image to GHCR]
+    D --> E{Release configuration}
+    E -->|Approval gate| F[Continuous Delivery]
+    E -->|Automatic deployment| G[Continuous Deployment]
+    F --> H[Approve]
+    H --> I[Deploy to Production]
+    G --> I
 ```
 
 ### Key Differences Matrix:
