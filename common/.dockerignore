@@ -1,0 +1,17 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ruff_cache
+htmlcov
+.coverage
+coverage.xml
+junit
+.venv
+env/
+venv/
+.git
+.gitignore
+.azuredevops
+azure-pipelines.yml

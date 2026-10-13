@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 720" width="100%" height="100%" style="background:#0d1117; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Arrow marker definition -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#58a6ff" />
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#3fb950" />
+    </marker>
+    <marker id="arrow-amber" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#d29922" />
+    </marker>
+    
+    <!-- Gradients -->
+    <linearGradient id="boxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#161b22"/>
+      <stop offset="100%" stop-color="#21262d"/>
+    </linearGradient>
+    <linearGradient id="gateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2d2200"/>
+      <stop offset="100%" stop-color="#3d2e00"/>
+    </linearGradient>
+    <linearGradient id="autoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#04260f"/>
+      <stop offset="100%" stop-color="#0d3a19"/>
+    </linearGradient>
+    <linearGradient id="prodGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1f293d"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Title -->
+  <text x="425" y="38" text-anchor="middle" fill="#f0f6fc" font-size="18" font-weight="700" letter-spacing="0.5">STANDARDIZED DEPLOYMENT ARCHITECTURE</text>
+
+  <!-- 1. New FastAPI Service -->
+  <g transform="translate(275, 65)">
+    <rect width="300" height="50" rx="8" fill="url(#boxGrad)" stroke="#58a6ff" stroke-width="1.5"/>
+    <text x="150" y="31" text-anchor="middle" fill="#58a6ff" font-size="15" font-weight="600">🚀 New FastAPI Service</text>
+  </g>
+
+  <!-- Arrow 1 to 2 -->
+  <line x1="425" y1="115" x2="425" y2="145" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- 2. Service Caller ci.yml -->
+  <g transform="translate(275, 145)">
+    <rect width="300" height="50" rx="8" fill="url(#boxGrad)" stroke="#30363d" stroke-width="1.5"/>
+    <text x="150" y="24" text-anchor="middle" fill="#c9d1d9" font-size="14" font-weight="600">Service Caller Configuration</text>
+    <text x="150" y="42" text-anchor="middle" fill="#8b949e" font-size="12">.github/workflows/ci.yml</text>
+  </g>
+
+  <!-- Arrow 2 to 3 -->
+  <line x1="425" y1="195" x2="425" y2="225" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- 3. Reusable CI Workflow -->
+  <g transform="translate(275, 225)">
+    <rect width="300" height="54" rx="8" fill="url(#boxGrad)" stroke="#388bfd" stroke-width="1.5"/>
+    <text x="150" y="25" text-anchor="middle" fill="#79c0ff" font-size="14" font-weight="600">Reusable CI Workflow</text>
+    <text x="150" y="44" text-anchor="middle" fill="#8b949e" font-size="12">Lint (Ruff) • Tests (Pytest) • Scan (Trivy)</text>
+  </g>
+
+  <!-- Arrow 3 to 4 -->
+  <line x1="425" y1="279" x2="425" y2="309" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- 4. Publish Versioned Image to GHCR -->
+  <g transform="translate(275, 309)">
+    <rect width="300" height="54" rx="8" fill="url(#boxGrad)" stroke="#a371f7" stroke-width="1.5"/>
+    <text x="150" y="25" text-anchor="middle" fill="#d2a8ff" font-size="14" font-weight="600">📦 Publish OCI Image to GHCR</text>
+    <text x="150" y="44" text-anchor="middle" fill="#8b949e" font-size="12">Immutable Tag: ghcr.io/&lt;owner&gt;/&lt;app&gt;:&lt;sha&gt;</text>
+  </g>
+
+  <!-- Arrow 4 to 5 -->
+  <line x1="425" y1="363" x2="425" y2="393" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- 5. Reusable Deployment Workflow & Staging -->
+  <g transform="translate(255, 393)">
+    <rect width="340" height="54" rx="8" fill="url(#boxGrad)" stroke="#30363d" stroke-width="1.5"/>
+    <text x="170" y="25" text-anchor="middle" fill="#c9d1d9" font-size="14" font-weight="600">Reusable Deployment Workflow</text>
+    <text x="170" y="44" text-anchor="middle" fill="#58a6ff" font-size="12">Auto-Deploy to Staging &amp; Smoke Test (curl :port/health)</text>
+  </g>
+
+  <!-- Arrow 5 to Release Policy -->
+  <line x1="425" y1="447" x2="425" y2="475" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- Decision: Release Policy Diamond/Badge -->
+  <g transform="translate(325, 475)">
+    <rect width="200" height="42" rx="21" fill="#21262d" stroke="#f0883e" stroke-width="1.5"/>
+    <text x="100" y="26" text-anchor="middle" fill="#ffa657" font-size="13" font-weight="700">⚖️ RELEASE POLICY</text>
+  </g>
+
+  <!-- Left Branch: Continuous Delivery -->
+  <path d="M 325 496 L 190 496 L 190 540" fill="none" stroke="#d29922" stroke-width="2" marker-end="url(#arrow-amber)" />
+  <text x="210" y="488" fill="#d29922" font-size="11" font-weight="600">Continuous Delivery</text>
+
+  <!-- Right Branch: Continuous Deployment -->
+  <path d="M 525 496 L 660 496 L 660 540" fill="none" stroke="#3fb950" stroke-width="2" marker-end="url(#arrow-green)" />
+  <text x="545" y="488" fill="#3fb950" font-size="11" font-weight="600">Continuous Deployment</text>
+
+  <!-- Left Box: Manual Approval Gate -->
+  <g transform="translate(60, 540)">
+    <rect width="260" height="56" rx="8" fill="url(#gateGrad)" stroke="#d29922" stroke-width="1.5"/>
+    <text x="130" y="25" text-anchor="middle" fill="#e3b341" font-size="13" font-weight="700">⏸️ Manual Approval Gate</text>
+    <text x="130" y="44" text-anchor="middle" fill="#bb8009" font-size="11">production-manual-gate (Review Required)</text>
+  </g>
+
+  <!-- Right Box: Automatic Rollout -->
+  <g transform="translate(530, 540)">
+    <rect width="260" height="56" rx="8" fill="url(#autoGrad)" stroke="#3fb950" stroke-width="1.5"/>
+    <text x="130" y="25" text-anchor="middle" fill="#56d364" font-size="13" font-weight="700">⚡ Automatic Rollout</text>
+    <text x="130" y="44" text-anchor="middle" fill="#2ea043" font-size="11">production-automated (Zero-Touch)</text>
+  </g>
+
+  <!-- Converging Arrows to Production -->
+  <path d="M 190 596 L 190 640 L 335 640" fill="none" stroke="#d29922" stroke-width="2" marker-end="url(#arrow)" />
+  <path d="M 660 596 L 660 640 L 515 640" fill="none" stroke="#3fb950" stroke-width="2" marker-end="url(#arrow)" />
+
+  <!-- Final Box: Production Deployment -->
+  <g transform="translate(295, 615)">
+    <rect width="260" height="54" rx="8" fill="url(#prodGrad)" stroke="#58a6ff" stroke-width="2"/>
+    <text x="130" y="25" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="700">🎯 Live Production Deployment</text>
+    <text x="130" y="44" text-anchor="middle" fill="#7ee787" font-size="12">Health Verified &amp; Rollback Ready</text>
+  </g>
+</svg>

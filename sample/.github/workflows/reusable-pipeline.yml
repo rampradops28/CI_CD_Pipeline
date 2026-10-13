@@ -1,0 +1,233 @@
+name: Reusable Python & Docker Pipeline
+
+# Trigger: Callable by any repository or workflow
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: "Directory containing the application code and Dockerfile"
+        required: false
+        type: string
+        default: "."
+      python-version:
+        description: "Python version to use"
+        required: false
+        type: string
+        default: "3.11"
+      min-coverage:
+        description: "Minimum code coverage required to pass (percentage)"
+        required: false
+        type: number
+        default: 80
+      image-name:
+        description: "Docker image tag name"
+        required: false
+        type: string
+        default: "app"
+      app-port:
+        description: "Port the container exposes and listens on"
+        required: false
+        type: number
+        default: 8000
+      health-endpoint:
+        description: "Endpoint path to verify container health"
+        required: false
+        type: string
+        default: "/health"
+      push-image:
+        description: "Whether to publish Docker image to GitHub Container Registry (ghcr.io)"
+        required: false
+        type: boolean
+        default: true
+      deployment-type:
+        description: "Type of CD: 'delivery' (automated staging + manual approval gate for production) or 'deployment' (100% automated after staging)"
+        required: false
+        type: string
+        default: "delivery"
+
+jobs:
+  # ==========================================================
+  # JOB 1: Lint, Test & Code Coverage
+  # ==========================================================
+  test:
+    name: Lint, Test & Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout caller code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ inputs.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: "pip" # It remembers packages you already downloaded in previous runs.
+          cache-dependency-path: "${{ inputs.working-directory }}/pyproject.toml"
+
+      - name: Install dependencies & linter
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+          pip install .
+
+      - name: Lint with Ruff (Fail fast on syntax/style issues)
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          ruff check .
+
+      - name: Run Pytest with HTML Coverage Report
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          pytest tests/ --import-mode=importlib --cov=app --cov-report=term-missing --cov-report=html:htmlcov --cov-fail-under=${{ inputs.min-coverage }}
+
+      - name: Upload Test Coverage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ inputs.image-name }}
+          path: ${{ inputs.working-directory }}/htmlcov/
+
+  # ==========================================================
+  # JOB 2: Docker Build, Smoke Test, Security Scan & Deliver
+  # ==========================================================
+  docker-build:
+    name: Build, Verify & Publish Container
+    needs: test                     # Runs only if lint, tests & coverage pass
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout caller code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          docker build -t ${{ inputs.image-name }}:latest .
+
+      - name: Verify Container Runs (Smoke Test)
+        run: |
+          # 1. Start the container in background
+          docker run -d --name test-container -p ${{ inputs.app-port }}:${{ inputs.app-port }} ${{ inputs.image-name }}:latest
+          
+          # 2. Wait for server to initialize
+          sleep 3
+          
+          # 3. Hit the health endpoint
+          curl --fail http://localhost:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+          
+          # 4. Cleanup
+          docker stop test-container
+          docker rm test-container
+
+      - name: Scan Docker Image for Vulnerabilities (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ inputs.image-name }}:latest
+          format: "table"
+          exit-code: "0" # Audit mode: reports CVEs in pipeline logs
+          severity: "CRITICAL,HIGH"
+
+      - name: Log in to GitHub Container Registry (GHCR)
+        if: inputs.push-image && (github.ref == 'refs/heads/main' || github.event_name == 'release')
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and Publish Image to GHCR (Continuous Delivery)
+        if: inputs.push-image && (github.ref == 'refs/heads/main' || github.event_name == 'release')
+        run: |
+          # Lowercase repository owner for OCI registry compliance
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_URI="ghcr.io/${OWNER_LOWER}/${{ inputs.image-name }}"
+          
+          docker tag ${{ inputs.image-name }}:latest ${IMAGE_URI}:latest
+          docker tag ${{ inputs.image-name }}:latest ${IMAGE_URI}:${{ github.sha }}
+          
+          docker push ${IMAGE_URI}:latest
+          docker push ${IMAGE_URI}:${{ github.sha }}
+          echo "🚀 Successfully pushed: ${IMAGE_URI}:${{ github.sha }}"
+
+  # ==========================================================
+  # JOB 3A: Deploy to Staging (Continuous Delivery - Auto)
+  # ==========================================================
+  deploy-staging:
+    name: "CD: Auto-Deploy & Smoke Test on Staging"
+    needs: docker-build
+    if: (github.ref == 'refs/heads/main' || github.event_name == 'release')
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: http://staging.internal:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+
+    steps:
+      - name: Deploy Container to Staging Environment
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_URI="ghcr.io/${OWNER_LOWER}/${{ inputs.image-name }}:${{ github.sha }}"
+          echo "📦 Pulling deployable artifact from GHCR: ${IMAGE_URI}"
+          echo "🚀 Deploying to Staging cluster on port ${{ inputs.app-port }}..."
+          docker run -d --name staging-app -p ${{ inputs.app-port }}:${{ inputs.app-port }} ${IMAGE_URI}
+          sleep 3
+          curl --fail http://localhost:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+          echo "✅ Staging verification passed! Artifact ready for Production delivery."
+          docker stop staging-app
+
+  # ==========================================================
+  # JOB 3B: Deploy to Production (Continuous Delivery - Manual Approval Gate)
+  # ==========================================================
+  deploy-production-gated:
+    name: "CD (Delivery): Production Release (Manual Approval)"
+    needs: deploy-staging
+    if: inputs.deployment-type == 'delivery' && (github.ref == 'refs/heads/main' || github.event_name == 'release')
+    runs-on: ubuntu-latest
+    environment:
+      name: production-manual-gate
+      url: http://production.internal:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+
+    steps:
+      - name: Deploy Container to Production Environment (After Approval)
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_URI="ghcr.io/${OWNER_LOWER}/${{ inputs.image-name }}:${{ github.sha }}"
+          echo "🔓 Approval received from authorized reviewer!"
+          echo "📦 Pulling release image from GHCR: ${IMAGE_URI}"
+          echo "🚀 Deploying ${IMAGE_URI} to Production cluster..."
+          docker run -d --name prod-app -p ${{ inputs.app-port }}:${{ inputs.app-port }} ${IMAGE_URI}
+          sleep 3
+          curl --fail http://localhost:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+          echo "🎉 Successfully deployed to Production via Continuous Delivery!"
+          docker stop prod-app
+
+  # ==========================================================
+  # JOB 3C: Direct Auto-Deploy to Production (Continuous Deployment)
+  # ==========================================================
+  deploy-production-automated:
+    name: "CD (Deployment): 100% Automated Production Rollout"
+    needs: deploy-staging
+    if: inputs.deployment-type == 'deployment' && (github.ref == 'refs/heads/main' || github.event_name == 'release')
+    runs-on: ubuntu-latest
+    environment:
+      name: production-automated
+      url: http://production.internal:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+
+    steps:
+      - name: Deploy Container Directly to Production (Zero Human Touch)
+        run: |
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_URI="ghcr.io/${OWNER_LOWER}/${{ inputs.image-name }}:${{ github.sha }}"
+          echo "⚡ Continuous Deployment mode active: Zero human intervention required."
+          echo "📦 Pulling release image from GHCR: ${IMAGE_URI}"
+          echo "🚀 Rolling out ${IMAGE_URI} directly to Production cluster..."
+          docker run -d --name prod-auto-app -p ${{ inputs.app-port }}:${{ inputs.app-port }} ${IMAGE_URI}
+          sleep 3
+          curl --fail http://localhost:${{ inputs.app-port }}${{ inputs.health-endpoint }}
+          echo "🎉 Continuous Deployment successfully completed! Production is live."
+          docker stop prod-auto-app
