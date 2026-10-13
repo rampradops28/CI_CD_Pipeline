@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CI/CD Pipeline — Documentation Manual</title>
+  <meta name="description" content="Complete documentation manual for the Microservices CI/CD Pipeline powered by GitHub Actions Reusable Workflows and Docker." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg:           #060912;
+      --surface:      #0d1117;
+      --surface2:     #161b27;
+      --border:       #1e2537;
+      --border2:      #2a3347;
+      --text:         #e2e8f0;
+      --muted:        #64748b;
+      --muted2:       #475569;
+      --blue:         #3b82f6;
+      --blue-dim:     rgba(59,130,246,0.12);
+      --cyan:         #06b6d4;
+      --cyan-dim:     rgba(6,182,212,0.12);
+      --purple:       #8b5cf6;
+      --purple-dim:   rgba(139,92,246,0.12);
+      --green:        #10b981;
+      --green-dim:    rgba(16,185,129,0.12);
+      --amber:        #f59e0b;
+      --amber-dim:    rgba(245,158,11,0.12);
+      --pink:         #ec4899;
+      --pink-dim:     rgba(236,72,153,0.12);
+      --red:          #ef4444;
+      --red-dim:      rgba(239,68,68,0.12);
+      --radius:       12px;
+      --radius-sm:    8px;
+      --font-mono:    'JetBrains Mono', monospace;
+      --font-sans:    'Inter', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 10% 5%,  rgba(59,130,246,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 90% 90%, rgba(139,92,246,0.07) 0%, transparent 60%);
+      min-height: 100vh;
+    }
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(6,9,18,0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 32px;
+      height: 56px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .nav-logo {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--blue);
+      margin-right: 24px;
+      flex-shrink: 0;
+      letter-spacing: 0.5px;
+    }
+    nav a {
+      font-size: 13px;
+      color: var(--muted);
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: color 0.2s, background 0.2s;
+      flex-shrink: 0;
+    }
+    nav a:hover { color: var(--text); background: var(--surface2); }
+    .page { max-width: 1100px; margin: 0 auto; padding: 0 24px 80px; }
+    .hero { text-align: center; padding: 80px 0 64px; }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--cyan);
+      border: 1px solid rgba(6,182,212,0.3);
+      padding: 5px 16px;
+      border-radius: 20px;
+      background: rgba(6,182,212,0.07);
+      margin-bottom: 24px;
+    }
+    .hero-badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--cyan);
+      animation: pulse-dot 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.7); }
+    }
+    h1 {
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 700;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 60%, #64748b 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+      letter-spacing: -0.5px;
+    }
+    .hero-subtitle {
+      font-size: 16px;
+      color: var(--muted);
+      max-width: 560px;
+      margin: 0 auto 40px;
+      font-weight: 400;
+    }
+    .pipeline-bar { display: flex; gap: 3px; height: 5px; border-radius: 4px; overflow: hidden; margin-bottom: 64px; }
+    .pipeline-bar-seg { flex: 1; border-radius: 2px; animation: bar-breathe 2.4s ease-in-out infinite; }
+    @keyframes bar-breathe { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+    section { margin-bottom: 72px; scroll-margin-top: 72px; }
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--muted2);
+      margin-bottom: 24px;
+    }
+    .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.3px; }
+    .section-desc { color: var(--muted); font-size: 14px; margin-bottom: 32px; }
+    .overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .overview-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+    }
+    .overview-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--accent); }
+    .overview-card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+    .ov-icon { font-size: 28px; margin-bottom: 12px; display: block; filter: drop-shadow(0 0 8px var(--accent)); }
+    .ov-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .ov-desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .arch-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; }
+    .arch-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 0; justify-content: center; }
+    .arch-node {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      padding: 16px 20px; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); min-width: 100px; text-align: center;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .arch-node:hover { transform: scale(1.06); }
+    .arch-node-icon { font-size: 22px; }
+    .arch-node-label { font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--n-color); }
+    .arch-node-sub { font-size: 11px; color: var(--muted); }
+    .arch-arrow { display: flex; align-items: center; padding: 0 6px; flex-shrink: 0; }
+    .arch-arrow svg { color: var(--muted2); }
+    .arch-branch { display: flex; flex-direction: column; gap: 12px; margin-left: 8px; }
+    .arch-branch-row { display: flex; align-items: center; gap: 0; }
+    .arch-gate { font-family: var(--font-mono); font-size: 10px; padding: 3px 8px; border-radius: 4px; margin-right: 6px; font-weight: 600; white-space: nowrap; }
+    .gate-auto   { background: var(--green-dim); color: var(--green); border: 1px solid rgba(16,185,129,0.25); }
+    .gate-manual { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(245,158,11,0.25); }
+    .stages-list { display: flex; flex-direction: column; gap: 16px; }
+    .stage-row { display: grid; grid-template-columns: 40px 1fr; gap: 0 20px; align-items: start; }
+    .stage-num {
+      width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--s-color);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--s-color);
+      background: rgba(0,0,0,0.3); flex-shrink: 0; margin-top: 4px;
+      box-shadow: 0 0 16px rgba(0,0,0,0.2);
+    }
+    .stage-body {
+      background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--s-color);
+      border-radius: var(--radius-sm); padding: 20px 24px;
+      transition: box-shadow 0.2s;
+    }
+    .stage-body:hover { box-shadow: 0 4px 24px rgba(0,0,0,0.3); }
+    .stage-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .stage-icon-sm { font-size: 18px; }
+    .stage-title { font-size: 15px; font-weight: 600; flex: 1; }
+    .stage-badge {
+      font-family: var(--font-mono); font-size: 10px; padding: 2px 8px; border-radius: 4px;
+      font-weight: 600; letter-spacing: 0.5px;
+      background: rgba(0,0,0,0.3); color: var(--s-color); border: 1px solid rgba(128,128,128,0.2);
+    }
+    .stage-desc { font-size: 13px; color: var(--muted); margin-bottom: 14px; line-height: 1.55; }
+    .step-grid { display: flex; flex-direction: column; gap: 6px; }
+    .step-item { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: #94a3b8; line-height: 1.45; }
+    .step-bullet { width: 5px; height: 5px; border-radius: 50%; background: var(--s-color); flex-shrink: 0; margin-top: 6px; }
+    pre {
+      background: #090d18; border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 16px 20px; overflow-x: auto; font-family: var(--font-mono); font-size: 12px;
+      line-height: 1.7; color: #c9d1d9; margin-top: 14px;
+    }
+    code { font-family: var(--font-mono); font-size: 12px; }
+    .cm { color: #6e7681; } .kw { color: #79c0ff; } .st { color: #a5d6ff; }
+    .nm { color: #ffa657; } .op { color: #e3b341; } .fn { color: #d2a8ff; }
+    :not(pre) > code { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 12px; color: var(--cyan); }
+    .services-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 640px) { .services-grid { grid-template-columns: 1fr; } }
+    .service-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; }
+    .service-card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); border-color: var(--sc-color); }
+    .service-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border); padding: 20px 24px 16px; }
+    .service-badge { display: inline-block; font-family: var(--font-mono); font-size: 10px; padding: 3px 10px; border-radius: 4px; font-weight: 600; letter-spacing: 0.5px; background: rgba(0,0,0,0.3); color: var(--sc-color); border: 1px solid rgba(128,128,128,0.2); margin-bottom: 10px; }
+    .service-name { font-size: 17px; font-weight: 700; }
+    .service-body { padding: 20px 24px; }
+    .service-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .service-row:last-child { border-bottom: none; }
+    .sr-key { color: var(--muted); }
+    .sr-val { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+    .sr-val.green { color: var(--green); } .sr-val.amber { color: var(--amber); } .sr-val.blue { color: var(--blue); }
+    .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead { background: var(--surface2); border-bottom: 1px solid var(--border); }
+    th { text-align: left; padding: 12px 16px; font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface2); }
+    td { padding: 12px 16px; vertical-align: top; line-height: 1.5; }
+    td:first-child { font-family: var(--font-mono); font-size: 12px; color: var(--cyan); font-weight: 600; }
+    .td-default { font-family: var(--font-mono); font-size: 12px; color: var(--amber); }
+    .td-type { font-family: var(--font-mono); font-size: 11px; color: var(--purple); }
+    .td-req { font-family: var(--font-mono); font-size: 11px; }
+    .td-req.no { color: var(--muted); } .td-req.yes { color: var(--amber); }
+    .runbook-steps { display: flex; flex-direction: column; gap: 20px; }
+    .rb-step { display: grid; grid-template-columns: 36px 1fr; gap: 16px; align-items: start; }
+    .rb-num { width: 36px; height: 36px; border-radius: var(--radius-sm); background: var(--blue-dim); border: 1px solid rgba(59,130,246,0.3); display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--blue); flex-shrink: 0; }
+    .rb-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .rb-desc { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+    .callout { border-radius: var(--radius-sm); padding: 14px 18px; margin-top: 16px; display: flex; gap: 10px; font-size: 13px; line-height: 1.55; }
+    .callout-info    { background: var(--blue-dim);  border-left: 3px solid var(--blue);  color: #93c5fd; }
+    .callout-warning { background: var(--amber-dim); border-left: 3px solid var(--amber); color: #fcd34d; }
+    .callout-success { background: var(--green-dim); border-left: 3px solid var(--green); color: #6ee7b7; }
+    .callout-icon { font-size: 16px; flex-shrink: 0; }
+    footer { text-align: center; padding: 24px; border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 11px; color: var(--muted2); letter-spacing: 0.5px; }
+    footer a { color: var(--blue); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    @media (max-width: 700px) {
+      .arch-flow { flex-direction: column; }
+      nav { padding: 0 16px; }
+      .page { padding: 0 16px 60px; }
+    }
+  </style>
+</head>
+
+<body>
+
+<nav>
+  <div class="nav-logo">&#9889; CI/CD Manual</div>
+  <a href="#overview">Overview</a>
+  <a href="#stages">Pipeline Stages</a>
+  <a href="#services">Services</a>
+  <a href="#inputs">Workflow Inputs</a>
+  <a href="#runbook">Operator Runbook</a>
+</nav>
+
+<div class="page">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-badge">Documentation Manual &middot; v1.0</div>
+    <h1>Microservices CI/CD Pipeline</h1>
+    <p class="hero-subtitle">
+      A production-ready, reusable GitHub Actions pipeline for containerized Python microservices &mdash;
+      from code commit to multi-environment deployment.
+    </p>
+    <div class="pipeline-bar">
+      <div class="pipeline-bar-seg" style="background:var(--blue);   animation-delay:0s"></div>
+      <div class="pipeline-bar-seg" style="background:var(--cyan);   animation-delay:0.3s"></div>
+      <div class="pipeline-bar-seg" style="background:var(--purple); animation-delay:0.6s"></div>
+      <div class="pipeline-bar-seg" style="background:var(--amber);  animation-delay:0.9s"></div>
+      <div class="pipeline-bar-seg" style="background:var(--pink);   animation-delay:1.2s"></div>
+      <div class="pipeline-bar-seg" style="background:var(--green);  animation-delay:1.5s"></div>
+    </div>
+  </div>
+
+
+  <!-- SECTION 1: OVERVIEW -->
+  <section id="overview">
+    <div class="section-label">Section 01 &mdash; Overview &amp; Architecture</div>
+    <h2>What Does This Pipeline Do?</h2>
+    <p class="section-desc">
+      Instead of duplicating 50+ lines of CI/CD YAML per microservice, this repository uses a
+      <strong>Reusable Workflow</strong> pattern &mdash; a shared pipeline template that any service
+      can call with custom inputs. Think of it as a parameterized function for software delivery.
+    </p>
+
+    <div class="overview-grid" style="margin-bottom: 32px;">
+      <div class="overview-card" style="--accent: var(--blue);">
+        <span class="ov-icon">&#128257;</span>
+        <div class="ov-title">Reusable Workflow</div>
+        <div class="ov-desc">One shared <code>reusable-pipeline.yml</code> template serves all microservices via parameterized inputs.</div>
+      </div>
+      <div class="overview-card" style="--accent: var(--cyan);">
+        <span class="ov-icon">&#9889;</span>
+        <div class="ov-title">Parallel Pipelines</div>
+        <div class="ov-desc">All services run their CI/CD pipelines simultaneously on every push, cutting total wait time significantly.</div>
+      </div>
+      <div class="overview-card" style="--accent: var(--green);">
+        <span class="ov-icon">&#128051;</span>
+        <div class="ov-title">Docker-Native</div>
+        <div class="ov-desc">Every service is built, smoke-tested, vulnerability-scanned, and published to GHCR as an OCI image.</div>
+      </div>
+      <div class="overview-card" style="--accent: var(--purple);">
+        <span class="ov-icon">&#128737;</span>
+        <div class="ov-title">Quality Gates</div>
+        <div class="ov-desc">Lint &middot; 100% test pass &middot; configurable coverage threshold &middot; Trivy security scan &mdash; all must pass before publish.</div>
+      </div>
+      <div class="overview-card" style="--accent: var(--amber);">
+        <span class="ov-icon">&#128710;</span>
+        <div class="ov-title">Dual CD Modes</div>
+        <div class="ov-desc"><strong>Continuous Deployment</strong> (zero-touch) and <strong>Continuous Delivery</strong> (staging + manual approval gate) &mdash; per service.</div>
+      </div>
+      <div class="overview-card" style="--accent: var(--pink);">
+        <span class="ov-icon">&#128230;</span>
+        <div class="ov-title">Dual-Tag Publishing</div>
+        <div class="ov-desc">Every release is tagged <code>:latest</code> AND <code>:&lt;git-sha&gt;</code> for instant rollback and a full audit trail.</div>
+      </div>
+    </div>
+
+    <!-- Architecture flow -->
+    <div class="arch-box">
+      <div class="section-label" style="margin-bottom: 28px;">End-to-End Flow</div>
+      <div class="arch-flow">
+        <div class="arch-node" style="--n-color: var(--blue)">
+          <span class="arch-node-icon">&#128190;</span>
+          <span class="arch-node-label">Git Push</span>
+          <span class="arch-node-sub">main / PR</span>
+        </div>
+        <div class="arch-arrow">
+          <svg width="28" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 28 14"><path d="M0 7h24M18 2l6 5-6 5"/></svg>
+        </div>
+        <div class="arch-node" style="--n-color: var(--cyan)">
+          <span class="arch-node-icon">&#129514;</span>
+          <span class="arch-node-label">Lint &amp; Test</span>
+          <span class="arch-node-sub">Ruff &middot; Pytest</span>
+        </div>
+        <div class="arch-arrow">
+          <svg width="28" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 28 14"><path d="M0 7h24M18 2l6 5-6 5"/></svg>
+        </div>
+        <div class="arch-node" style="--n-color: var(--purple)">
+          <span class="arch-node-icon">&#128051;</span>
+          <span class="arch-node-label">Build &amp; Verify</span>
+          <span class="arch-node-sub">Docker &middot; Smoke</span>
+        </div>
+        <div class="arch-arrow">
+          <svg width="28" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 28 14"><path d="M0 7h24M18 2l6 5-6 5"/></svg>
+        </div>
+        <div class="arch-node" style="--n-color: var(--amber)">
+          <span class="arch-node-icon">&#128269;</span>
+          <span class="arch-node-label">Security Scan</span>
+          <span class="arch-node-sub">Trivy CVE audit</span>
+        </div>
+        <div class="arch-arrow">
+          <svg width="28" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 28 14"><path d="M0 7h24M18 2l6 5-6 5"/></svg>
+        </div>
+        <div class="arch-node" style="--n-color: var(--pink)">
+          <span class="arch-node-icon">&#128230;</span>
+          <span class="arch-node-label">Publish GHCR</span>
+          <span class="arch-node-sub">:latest &middot; :sha</span>
+        </div>
+        <div class="arch-arrow">
+          <svg width="28" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 28 14"><path d="M0 7h24M18 2l6 5-6 5"/></svg>
+        </div>
+        <div class="arch-branch">
+          <div class="arch-branch-row">
+            <span class="arch-gate gate-auto">AUTO</span>
+            <div class="arch-node" style="--n-color: var(--green); min-width: 120px;">
+              <span class="arch-node-icon">&#128640;</span>
+              <span class="arch-node-label">Production</span>
+              <span class="arch-node-sub">Continuous Deployment</span>
+            </div>
+          </div>
+          <div class="arch-branch-row">
+            <span class="arch-gate gate-manual">GATED</span>
+            <div class="arch-node" style="--n-color: var(--amber); min-width: 120px;">
+              <span class="arch-node-icon">&#127917;</span>
+              <span class="arch-node-label">Staging</span>
+              <span class="arch-node-sub">Continuous Delivery</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout callout-info">
+        <span class="callout-icon">&#8505;&#65039;</span>
+        <span>On <strong>Pull Requests</strong>, only the Lint &amp; Test and Build &amp; Verify stages run. The image is <strong>never published</strong> to GHCR on unmerged PRs &mdash; preventing registry pollution.</span>
+      </div>
+    </div>
+
+    <!-- Repo layout -->
+    <div style="margin-top: 32px;">
+      <div class="section-label" style="margin-bottom: 16px;">Repository Layout</div>
+<pre><span class="cm">CI_CD_Pipeline/</span>
+&#9500;&#9472;&#9472; .github/
+&#9474;   &#9492;&#9472;&#9472; workflows/
+&#9474;       &#9500;&#9472;&#9472; <span class="nm">reusable-pipeline.yml</span>   <span class="cm"># Shared reusable workflow</span>
+&#9474;       &#9492;&#9472;&#9472; <span class="nm">ci.yml</span>                  <span class="cm"># Caller - invokes pipeline per service</span>
+&#9500;&#9472;&#9472; services/
+&#9474;   &#9500;&#9472;&#9472; learning_service/           <span class="cm"># FastAPI - Port 8000 - Continuous Deployment</span>
+&#9474;   &#9474;   &#9500;&#9472;&#9472; app/main.py
+&#9474;   &#9474;   &#9500;&#9472;&#9472; tests/test_learning.py
+&#9474;   &#9474;   &#9500;&#9472;&#9472; Dockerfile
+&#9474;   &#9474;   &#9500;&#9472;&#9472; requirements.txt
+&#9474;   &#9474;   &#9492;&#9472;&#9472; pytest.ini
+&#9474;   &#9492;&#9472;&#9472; order_service/              <span class="cm"># FastAPI - Port 8080 - Continuous Delivery</span>
+&#9474;       &#9500;&#9472;&#9472; app/main.py
+&#9474;       &#9500;&#9472;&#9472; tests/test_order.py
+&#9474;       &#9500;&#9472;&#9472; Dockerfile
+&#9474;       &#9500;&#9472;&#9472; requirements.txt
+&#9474;       &#9492;&#9472;&#9472; pytest.ini
+&#9492;&#9472;&#9472; docs/
+    &#9500;&#9472;&#9472; CICD_PIPELINE_GUIDE.md
+    &#9492;&#9472;&#9472; pipeline-manual.html        <span class="cm"># You are here</span></pre>
+    </div>
+  </section>
+
+
+  <!-- SECTION 2: PIPELINE STAGES -->
+  <section id="stages">
+    <div class="section-label">Section 02 &mdash; Pipeline Stages</div>
+    <h2>Stage Breakdown</h2>
+    <p class="section-desc">
+      Every service call to <code>reusable-pipeline.yml</code> executes the following
+      sequential job chain. Each job must succeed before the next begins.
+    </p>
+
+    <div class="stages-list">
+
+      <!-- Stage 1 -->
+      <div class="stage-row" style="--s-color: var(--cyan)">
+        <div class="stage-num">01</div>
+        <div class="stage-body">
+          <div class="stage-header">
+            <span class="stage-icon-sm">&#129514;</span>
+            <span class="stage-title">Lint, Test &amp; Coverage</span>
+            <span class="stage-badge">Job: test</span>
+          </div>
+          <p class="stage-desc">
+            Enforces code quality, correctness, and test coverage before any container is ever built.
+            Runs in a fresh <code>ubuntu-latest</code> environment with pip dependency caching.
+          </p>
+          <div class="step-grid">
+            <div class="step-item"><div class="step-bullet"></div><strong>Checkout code</strong> &mdash; fetches the repository at the triggering commit SHA.</div>
+            <div class="step-item"><div class="step-bullet"></div><strong>Setup Python</strong> &mdash; provisions the exact Python version specified in inputs (3.11 by default). Pip packages are cached using <code>requirements.txt</code> as the cache key.</div>
+            <div class="step-item"><div class="step-bullet"></div><strong>Install dependencies</strong> &mdash; upgrades pip and installs Ruff (linter) plus all service requirements.</div>
+            <div class="step-item"><div class="step-bullet"></div><strong>Lint with Ruff</strong> &mdash; scans for syntax errors, PEP 8 violations, unused imports, and import ordering. Fails fast if any issue is found.</div>
+            <div class="step-item"><div class="step-bullet"></div><strong>Run Pytest + Coverage</strong> &mdash; all tests must pass. Coverage below <code>min-coverage</code> (80% or 85%) blocks the Docker build entirely.</div>
+            <div class="step-item"><div class="step-bullet"></div><strong>Upload HTML coverage report</strong> &mdash; detailed <code>htmlcov/</code> uploaded as a downloadable workflow artifact named <code>coverage-report-{image-name}</code>.</div>
+          </div>
+<pre><span class="cm"># Command that runs in the service working directory</span>
+<span class="kw">pytest</span> tests/ \
+  --import-mode=importlib \
+  --cov=app \
+  --cov-report=term-missing \
+  --cov-report=html:htmlcov \
+  --cov-fail-under=<span class="nm">80</span>   <span class="cm"># (or 85 for order_service)</span></pre>
+        </div>
+      </div>
+
+      <!-- Stage 2 -->
+      <div class="stage-row" style="--s-color: var(--purple)">
+        <div class="stage-num">02</div>
+        <div class="stage-body">
+          <div class="stage-header">
+            <span class="stage-icon-sm">&#128051;</span>
+            <span class="stage-title">Build, Verify &amp; Publish Container</span>
+            <span class="stage-badge">Job: docker-build</span>
+          </div>
+          <p class="stage-desc">
+            Assembles the OCI-compliant Docker image, verifies it runs via an automated smoke test,
+            scans for CVEs, then publishes to GHCR with dual tags.
+            Only starts if Stage 01 passes (<code>needs: test</code>).
+          </p>
+          <div class="step-grid">
+            <div class="step-item"><div class="step-bullet"></div><strong>Set up Docker Buildx</strong> &mdash; enables multi-platform build support.</div>
+            <div class="step-item"><div class="step-bullet"></div><strong>Build Docker image</strong> &mdash; runs <code>docker build -t {image-name}:latest .</code> using <code>python:3.11-slim</code> as base.</div>
+            <div class="step-item"><div class="step-bullet"></div><strong>Smoke Test</strong> &mdash; starts the container in background, waits 3 seconds, issues an HTTP GET to the health endpoint. A non-200 response or crash fails the pipeline.</div>
+            <div class="step-item"><div class="step-bullet"></div><strong>Trivy security scan</strong> &mdash; audits image layers for CRITICAL and HIGH CVEs. Runs in audit mode (reports without blocking).</div>
+            <div class="step-item"><div class="step-bullet"></div><strong>Login to GHCR</strong> &mdash; authenticates using built-in <code>GITHUB_TOKEN</code> (only on main branch or release events).</div>
+            <div class="step-item"><div class="step-bullet"></div><strong>Tag &amp; Push to GHCR</strong> &mdash; publishes <code>:latest</code> (rolling) and <code>:{git-sha}</code> (immutable) tags. Owner is auto-lowercased for OCI compliance.</div>
+          </div>
+<pre><span class="cm"># Smoke Test sequence</span>
+docker run -d --name test-container \
+  -p <span class="nm">{app-port}</span>:<span class="nm">{app-port}</span> <span class="nm">{image-name}</span>:latest
+sleep <span class="nm">3</span>
+curl --fail http://localhost:<span class="nm">{app-port}</span><span class="nm">{health-endpoint}</span>
+docker stop test-container &amp;&amp; docker rm test-container
+
+<span class="cm"># Dual-tag publish</span>
+IMAGE_URI=<span class="st">"ghcr.io/${OWNER_LOWER}/{image-name}"</span>
+docker tag <span class="nm">{image-name}</span>:latest ${IMAGE_URI}:latest
+docker tag <span class="nm">{image-name}</span>:latest ${IMAGE_URI}:<span class="nm">{github.sha}</span>
+docker push ${IMAGE_URI}:latest
+docker push ${IMAGE_URI}:<span class="nm">{github.sha}</span></pre>
+        </div>
+      </div>
+
+      <!-- Stage 3A: Continuous Deployment -->
+      <div class="stage-row" style="--s-color: var(--green)">
+        <div class="stage-num">3A</div>
+        <div class="stage-body">
+          <div class="stage-header">
+            <span class="stage-icon-sm">&#128640;</span>
+            <span class="stage-title">Continuous Deployment &mdash; Direct Production Rollout</span>
+            <span class="stage-badge">Job: deploy-production-automated</span>
+          </div>
+          <p class="stage-desc">
+            Activated when <code>deployment-type: "deployment"</code> (used by <strong>Learning Service</strong>).
+            Once the image is in GHCR, it rolls directly to production with zero human intervention.
+          </p>
+          <div class="step-grid">
+            <div class="step-item"><div class="step-bullet"></div>Pulls the exact commit-SHA-tagged image from GHCR.</div>
+            <div class="step-item"><div class="step-bullet"></div>Deploys to the <code>production-automated</code> GitHub Environment.</div>
+            <div class="step-item"><div class="step-bullet"></div>Verifies the production container responds on its health route.</div>
+            <div class="step-item"><div class="step-bullet"></div>Pipeline completes with Completed status &mdash; no human approval required.</div>
+          </div>
+          <div class="callout callout-success">
+            <span class="callout-icon">&#9989;</span>
+            <span>Best for: fast-moving APIs, internal tools, learning systems where speed of iteration outweighs manual oversight.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stage 3B: Continuous Delivery -->
+      <div class="stage-row" style="--s-color: var(--amber)">
+        <div class="stage-num">3B</div>
+        <div class="stage-body">
+          <div class="stage-header">
+            <span class="stage-icon-sm">&#127917;</span>
+            <span class="stage-title">Continuous Delivery &mdash; Staging + Manual Approval Gate</span>
+            <span class="stage-badge">Jobs: deploy-staging &rarr; deploy-production-gated</span>
+          </div>
+          <p class="stage-desc">
+            Activated when <code>deployment-type: "delivery"</code> (used by <strong>Order Service</strong>).
+            The artifact is automatically staged for QA verification, then a manual approval gate blocks
+            production rollout until an authorized reviewer approves.
+          </p>
+          <div class="step-grid">
+            <div class="step-item"><div class="step-bullet"></div><strong>Auto-deploy to Staging</strong> &mdash; pulls the SHA-tagged image and deploys to the <code>staging</code> GitHub Environment with health verification.</div>
+            <div class="step-item"><div class="step-bullet"></div><strong>Pause at Approval Gate</strong> &mdash; the pipeline enters <em>Waiting for review</em> state at the <code>production-manual-gate</code> environment. Authorized reviewers are notified.</div>
+            <div class="step-item"><div class="step-bullet"></div><strong>Manual approval</strong> &mdash; a reviewer logs into GitHub Actions, inspects staging, and clicks <em>Approve and deploy</em>.</div>
+            <div class="step-item"><div class="step-bullet"></div><strong>Production deploy</strong> &mdash; upon approval the pipeline resumes, deploying the same SHA-pinned image to production with health verification.</div>
+          </div>
+          <div class="callout callout-warning">
+            <span class="callout-icon">&#9888;&#65039;</span>
+            <span>Best for: financial services, order processing, billing &mdash; any system requiring human business sign-off before reaching end users.</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- SECTION 3: SERVICES -->
+  <section id="services">
+    <div class="section-label">Section 03 &mdash; Services</div>
+    <h2>Service Configurations</h2>
+    <p class="section-desc">
+      Both microservices share the same reusable pipeline but are configured differently,
+      demonstrating the two CD models side by side.
+    </p>
+
+    <div class="services-grid">
+      <div class="service-card" style="--sc-color: var(--blue);">
+        <div class="service-header">
+          <div class="service-badge">Continuous Deployment</div>
+          <div class="service-name">&#128309; Learning Service</div>
+        </div>
+        <div class="service-body">
+          <div class="service-row"><span class="sr-key">Directory</span><span class="sr-val">services/learning_service</span></div>
+          <div class="service-row"><span class="sr-key">Python Version</span><span class="sr-val blue">3.11</span></div>
+          <div class="service-row"><span class="sr-key">Port</span><span class="sr-val blue">8000</span></div>
+          <div class="service-row"><span class="sr-key">Health Endpoint</span><span class="sr-val">/health</span></div>
+          <div class="service-row"><span class="sr-key">Min Coverage</span><span class="sr-val blue">80%</span></div>
+          <div class="service-row"><span class="sr-key">Image Name</span><span class="sr-val">learning-service</span></div>
+          <div class="service-row"><span class="sr-key">Deployment Type</span><span class="sr-val green">deployment (auto)</span></div>
+          <div class="service-row"><span class="sr-key">Production Gate</span><span class="sr-val green">Zero-touch automation</span></div>
+          <div class="service-row"><span class="sr-key">Base Image</span><span class="sr-val">python:3.11-slim</span></div>
+          <div class="service-row"><span class="sr-key">Framework</span><span class="sr-val">FastAPI + Uvicorn</span></div>
+          <div class="service-row"><span class="sr-key">GHCR URI</span><span class="sr-val" style="font-size:11px;">ghcr.io/&lt;owner&gt;/learning-service</span></div>
+        </div>
+      </div>
+
+      <div class="service-card" style="--sc-color: var(--green);">
+        <div class="service-header">
+          <div class="service-badge">Continuous Delivery</div>
+          <div class="service-name">&#128994; Order Service</div>
+        </div>
+        <div class="service-body">
+          <div class="service-row"><span class="sr-key">Directory</span><span class="sr-val">services/order_service</span></div>
+          <div class="service-row"><span class="sr-key">Python Version</span><span class="sr-val green">3.11</span></div>
+          <div class="service-row"><span class="sr-key">Port</span><span class="sr-val green">8080</span></div>
+          <div class="service-row"><span class="sr-key">Health Endpoint</span><span class="sr-val">/healthz</span></div>
+          <div class="service-row"><span class="sr-key">Min Coverage</span><span class="sr-val amber">85%</span></div>
+          <div class="service-row"><span class="sr-key">Image Name</span><span class="sr-val">order-service</span></div>
+          <div class="service-row"><span class="sr-key">Deployment Type</span><span class="sr-val amber">delivery (gated)</span></div>
+          <div class="service-row"><span class="sr-key">Production Gate</span><span class="sr-val amber">Manual approval required</span></div>
+          <div class="service-row"><span class="sr-key">Base Image</span><span class="sr-val">python:3.11-slim</span></div>
+          <div class="service-row"><span class="sr-key">Framework</span><span class="sr-val">FastAPI + Uvicorn + Pydantic</span></div>
+          <div class="service-row"><span class="sr-key">GHCR URI</span><span class="sr-val" style="font-size:11px;">ghcr.io/&lt;owner&gt;/order-service</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- pytest.ini explanation -->
+    <div style="margin-top: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px;">
+      <div class="section-label" style="margin-bottom: 16px;">Why Each Service Has Its Own pytest.ini</div>
+      <p style="font-size: 13px; color: var(--muted); margin-bottom: 16px; line-height: 1.6;">
+        In a monorepo, pytest's discovery mechanism can accidentally pick up tests from sibling services.
+        Each service carries its own <code>pytest.ini</code> to prevent this:
+      </p>
+<pre>[pytest]
+<span class="kw">pythonpath</span> = .          <span class="cm"># Prevents ModuleNotFoundError: No module named 'app'</span>
+<span class="kw">testpaths</span>  = tests       <span class="cm"># Restricts discovery to THIS service's test folder only</span>
+<span class="kw">addopts</span>    = --import-mode=importlib  <span class="cm"># Isolated imports - prevents name collisions</span></pre>
+    </div>
+  </section>
+
+
+  <!-- SECTION 4: INPUTS -->
+  <section id="inputs">
+    <div class="section-label">Section 04 &mdash; Reusable Workflow Inputs</div>
+    <h2>Inputs Reference Table</h2>
+    <p class="section-desc">
+      All parameters accepted by <code>reusable-pipeline.yml</code> via <code>workflow_call</code>.
+      Any microservice added to <code>ci.yml</code> can override these defaults.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Input</th>
+            <th>Type</th>
+            <th>Default</th>
+            <th>Required</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>working-directory</td>
+            <td><span class="td-type">string</span></td>
+            <td><span class="td-default">"."</span></td>
+            <td><span class="td-req no">No</span></td>
+            <td>Path to the service folder containing <code>Dockerfile</code> and <code>requirements.txt</code>. Example: <code>services/order_service</code></td>
+          </tr>
+          <tr>
+            <td>python-version</td>
+            <td><span class="td-type">string</span></td>
+            <td><span class="td-default">"3.11"</span></td>
+            <td><span class="td-req no">No</span></td>
+            <td>Python runtime version to provision on the CI runner. Passed to <code>actions/setup-python@v5</code>.</td>
+          </tr>
+          <tr>
+            <td>min-coverage</td>
+            <td><span class="td-type">number</span></td>
+            <td><span class="td-default">80</span></td>
+            <td><span class="td-req no">No</span></td>
+            <td>Minimum code coverage percentage (0&ndash;100) required for the test job to pass. Passed to <code>--cov-fail-under</code>.</td>
+          </tr>
+          <tr>
+            <td>image-name</td>
+            <td><span class="td-type">string</span></td>
+            <td><span class="td-default">"app"</span></td>
+            <td><span class="td-req no">No</span></td>
+            <td>Docker image tag name used locally and as the GHCR repository name. Must be lowercase. Example: <code>order-service</code></td>
+          </tr>
+          <tr>
+            <td>app-port</td>
+            <td><span class="td-type">number</span></td>
+            <td><span class="td-default">8000</span></td>
+            <td><span class="td-req no">No</span></td>
+            <td>Port the container exposes and listens on. Used in <code>docker run -p</code>, the smoke test curl, and environment URLs.</td>
+          </tr>
+          <tr>
+            <td>health-endpoint</td>
+            <td><span class="td-type">string</span></td>
+            <td><span class="td-default">"/health"</span></td>
+            <td><span class="td-req no">No</span></td>
+            <td>HTTP route used to verify the container is alive during smoke test and deploy verification. Must return HTTP 200.</td>
+          </tr>
+          <tr>
+            <td>push-image</td>
+            <td><span class="td-type">boolean</span></td>
+            <td><span class="td-default">true</span></td>
+            <td><span class="td-req no">No</span></td>
+            <td>Whether to publish the Docker image to GHCR. Only takes effect on <code>main</code> branch pushes or release events.</td>
+          </tr>
+          <tr>
+            <td>deployment-type</td>
+            <td><span class="td-type">string</span></td>
+            <td><span class="td-default">"deployment"</span></td>
+            <td><span class="td-req no">No</span></td>
+            <td>
+              CD strategy after image publish:<br />
+              <code>"deployment"</code> &mdash; 100% automated direct-to-production rollout.<br />
+              <code>"delivery"</code> &mdash; auto staging deploy + manual approval gate for production.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">&#128161;</span>
+      <div>
+        <strong>Adding a new microservice takes ~3 minutes.</strong> Create the service folder, add the required files, then add one job block to <code>ci.yml</code>:
+<pre style="margin-top: 10px;"><span class="nm">payment-service-ci</span>:
+  <span class="kw">name</span>: <span class="st">"Project 3: Payment Service"</span>
+  <span class="kw">uses</span>: <span class="st">./.github/workflows/reusable-pipeline.yml</span>
+  <span class="kw">with</span>:
+    <span class="kw">working-directory</span>: <span class="st">"services/payment_service"</span>
+    <span class="kw">python-version</span>:    <span class="st">"3.11"</span>
+    <span class="kw">min-coverage</span>:     <span class="nm">80</span>
+    <span class="kw">image-name</span>:       <span class="st">"payment-service"</span>
+    <span class="kw">app-port</span>:         <span class="nm">9000</span>
+    <span class="kw">health-endpoint</span>:  <span class="st">"/health"</span>
+    <span class="kw">deployment-type</span>:  <span class="st">"delivery"</span></pre>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- SECTION 5: RUNBOOK -->
+  <section id="runbook">
+    <div class="section-label">Section 05 &mdash; Operator Runbook</div>
+    <h2>Pulling &amp; Running Images from GHCR</h2>
+    <p class="section-desc">
+      Once the pipeline publishes an image, any developer or platform engineer can pull and run it
+      locally or on a remote host. Follow the steps below in order.
+    </p>
+
+    <div class="runbook-steps">
+
+      <div class="rb-step">
+        <div class="rb-num">1</div>
+        <div>
+          <div class="rb-title">Authenticate to GitHub Container Registry (one-time setup)</div>
+          <div class="rb-desc">Generate a GitHub Personal Access Token (PAT) with the <code>read:packages</code> scope at: <em>GitHub &rarr; Settings &rarr; Developer settings &rarr; Personal access tokens</em>.</div>
+<pre>docker login ghcr.io -u <span class="nm">YOUR_GITHUB_USERNAME</span>
+<span class="cm"># When prompted for Password, paste your PAT (not your GitHub password)</span></pre>
+          <div class="callout callout-warning">
+            <span class="callout-icon">&#9888;&#65039;</span>
+            <span>Store the PAT securely. Do not commit it to source control.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rb-step">
+        <div class="rb-num">2</div>
+        <div>
+          <div class="rb-title">Pull the latest image</div>
+          <div class="rb-desc">Replace <code>&lt;owner&gt;</code> with the GitHub username or organization (always lowercase).</div>
+<pre><span class="cm"># Learning Service (port 8000)</span>
+docker pull ghcr.io/<span class="nm">&lt;owner&gt;</span>/learning-service:latest
+
+<span class="cm"># Order Service (port 8080)</span>
+docker pull ghcr.io/<span class="nm">&lt;owner&gt;</span>/order-service:latest
+
+<span class="cm"># Or pin to an exact version using the Git commit SHA</span>
+docker pull ghcr.io/<span class="nm">&lt;owner&gt;</span>/order-service:<span class="nm">abc1234</span></pre>
+        </div>
+      </div>
+
+      <div class="rb-step">
+        <div class="rb-num">3</div>
+        <div>
+          <div class="rb-title">Run the container</div>
+          <div class="rb-desc">Use <code>-d</code> to run in background, or remove <code>-d</code> to see live logs.</div>
+<pre><span class="cm"># Learning Service</span>
+docker run -d \
+  --name learning-api \
+  -p <span class="nm">8000</span>:<span class="nm">8000</span> \
+  ghcr.io/<span class="nm">&lt;owner&gt;</span>/learning-service:latest
+
+<span class="cm"># Order Service</span>
+docker run -d \
+  --name order-api \
+  -p <span class="nm">8080</span>:<span class="nm">8080</span> \
+  ghcr.io/<span class="nm">&lt;owner&gt;</span>/order-service:latest</pre>
+        </div>
+      </div>
+
+      <div class="rb-step">
+        <div class="rb-num">4</div>
+        <div>
+          <div class="rb-title">Verify the service is healthy</div>
+<pre><span class="cm"># Learning Service</span>
+curl http://localhost:<span class="nm">8000</span>/health
+<span class="cm"># Expected: {"status":"healthy"}</span>
+
+<span class="cm"># Order Service</span>
+curl http://localhost:<span class="nm">8080</span>/healthz
+<span class="cm"># Expected: {"status":"ok","service":"order-service"}</span>
+
+<span class="cm"># Open Swagger interactive API docs in browser</span>
+<span class="cm"># http://localhost:8000/docs   (Learning Service)</span>
+<span class="cm"># http://localhost:8080/docs   (Order Service)</span></pre>
+        </div>
+      </div>
+
+      <div class="rb-step">
+        <div class="rb-num">5</div>
+        <div>
+          <div class="rb-title">Rollback to a previous version</div>
+          <div class="rb-desc">Because every pipeline run publishes an immutable SHA-tagged image, rolling back is a one-liner. Find the target SHA from the GitHub Actions run summary or GHCR package page.</div>
+<pre><span class="cm"># Stop and remove the current container</span>
+docker stop order-api &amp;&amp; docker rm order-api
+
+<span class="cm"># Pull and run the previous known-good version by SHA</span>
+docker pull ghcr.io/<span class="nm">&lt;owner&gt;</span>/order-service:<span class="nm">abc1234</span>
+docker run -d \
+  --name order-api \
+  -p <span class="nm">8080</span>:<span class="nm">8080</span> \
+  ghcr.io/<span class="nm">&lt;owner&gt;</span>/order-service:<span class="nm">abc1234</span></pre>
+          <div class="callout callout-success">
+            <span class="callout-icon">&#9989;</span>
+            <span>Rollback is instant &mdash; the image is already in the registry. No re-build required.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rb-step">
+        <div class="rb-num">6</div>
+        <div>
+          <div class="rb-title">Build &amp; run services locally (without GHCR)</div>
+          <div class="rb-desc">For local development, build and run directly from source:</div>
+<pre><span class="cm"># Build Learning Service from source</span>
+docker build -t learning-service:local services/learning_service
+docker run -d --name learning-local -p <span class="nm">8000</span>:<span class="nm">8000</span> learning-service:local
+
+<span class="cm"># Run tests locally with coverage</span>
+cd services/learning_service
+pytest --cov=app --cov-fail-under=<span class="nm">80</span>
+
+<span class="cm"># Cleanup</span>
+docker stop learning-local &amp;&amp; docker rm learning-local</pre>
+        </div>
+      </div>
+
+      <!-- Troubleshooting -->
+      <div class="rb-step">
+        <div class="rb-num" style="background: var(--red-dim); border-color: var(--red); color: var(--red);">!</div>
+        <div>
+          <div class="rb-title">Common Issues &amp; Fixes</div>
+          <div class="table-wrap" style="margin-top: 12px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Issue</th>
+                  <th>Likely Cause</th>
+                  <th>Fix</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Coverage threshold failure</td>
+                  <td style="color:var(--muted)">Coverage below configured minimum</td>
+                  <td style="color:var(--muted)">Download <code>coverage-report-{service}</code> artifact &rarr; open <code>index.html</code> &rarr; write tests for red lines</td>
+                </tr>
+                <tr>
+                  <td>Smoke test failure</td>
+                  <td style="color:var(--muted)">Container crashed or health route returned non-200</td>
+                  <td style="color:var(--muted)">Check CI logs for Uvicorn tracebacks; verify port and health-endpoint inputs match Dockerfile EXPOSE</td>
+                </tr>
+                <tr>
+                  <td>Port already allocated</td>
+                  <td style="color:var(--muted)">Host port in use by another container</td>
+                  <td style="color:var(--muted)"><code>docker rm -f &lt;container-name&gt;</code> then re-run</td>
+                </tr>
+                <tr>
+                  <td>Registry casing error</td>
+                  <td style="color:var(--muted)">Uppercase chars in image name or owner</td>
+                  <td style="color:var(--muted)">OCI requires lowercase; pipeline auto-lowercases owner. Ensure <code>image-name</code> input is lowercase.</td>
+                </tr>
+                <tr>
+                  <td>Ruff lint failure</td>
+                  <td style="color:var(--muted)">Style or import violations in source</td>
+                  <td style="color:var(--muted)">Run <code>ruff check .</code> locally in the service directory, fix issues, push again</td>
+                </tr>
+                <tr>
+                  <td>Image not found in GHCR</td>
+                  <td style="color:var(--muted)">Pipeline ran on a PR (not main branch)</td>
+                  <td style="color:var(--muted)">Images are only published on pushes to <code>main</code> or release events &mdash; merge the PR first</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  CI/CD Pipeline Documentation Manual &nbsp;&middot;&nbsp;
+  GitHub Actions &middot; Docker &middot; GHCR &middot; FastAPI &nbsp;&middot;&nbsp;
+  <a href="https://github.com/rampradops28/CI_CD_Pipeline" target="_blank">rampradops28/CI_CD_Pipeline</a>
+</footer>
+
+</body>
+</html>
