@@ -1,0 +1,184 @@
+# ==============================================================================
+# GitHub Actions CI Workflow: FastAPI, SQLAlchemy, Alembic, uv & PostgreSQL
+# ==============================================================================
+# Objective:
+#   Strict Continuous Integration (CI) validation only.
+#   Validates code quality, Ruff linting, formatting, in-memory unit tests,
+#   PostgreSQL integration tests, Alembic migrations, 80% coverage threshold,
+#   and Docker build integrity.
+#
+# Scope Boundary:
+#   - CI validation only.
+#   - Zero Continuous Deployment (CD).
+#   - Zero Docker image push to any container registry.
+# ==============================================================================
+
+name: FastAPI CI Pipeline (GitHub Actions)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  # ============================================================================
+  # STAGE 1: Code Quality & Static Analysis
+  # ============================================================================
+  code-quality:
+    name: "Stage 1: Code Quality & Linting"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv package manager
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+
+      - name: Install dependencies via uv
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run Ruff Lint Check
+        run: uv run ruff check .
+
+      - name: Run Ruff Format Verification
+        run: uv run ruff format --check .
+
+  # ============================================================================
+  # STAGE 2: Unit Testing (In-Memory Isolation)
+  # ============================================================================
+  unit-tests:
+    name: "Stage 2: Unit Testing"
+    needs: code-quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run Pytest Unit Tests
+        run: |
+          mkdir -p junit
+          uv run pytest tests/unit -m unit -v --junitxml=junit/unit-test-results.xml
+
+      - name: Upload Unit Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results
+          path: junit/unit-test-results.xml
+          retention-days: 30
+
+  # ============================================================================
+  # STAGE 3: Integration Testing (PostgreSQL Service Container + Alembic)
+  # ============================================================================
+  integration-tests:
+    name: "Stage 3: Integration Testing (PostgreSQL)"
+    needs: code-quality
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_secure_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Run Alembic Database Migrations
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@localhost:5432/test_db
+        run: uv run alembic upgrade head
+
+      - name: Run Pytest Integration Tests & Enforce 80% Coverage Gate
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@localhost:5432/test_db
+        run: |
+          mkdir -p junit
+          uv run pytest tests/integration -m integration -v \
+            --junitxml=junit/integration-test-results.xml \
+            --cov=app \
+            --cov-fail-under=80 \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov
+
+      - name: Upload HTML Code Coverage Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: html-coverage-report
+          path: htmlcov/
+          retention-days: 30
+
+      - name: Upload Integration Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-results
+          path: junit/integration-test-results.xml
+          retention-days: 30
+
+  # ============================================================================
+  # STAGE 4: Docker Build Validation (Strict Zero Push)
+  # ============================================================================
+  docker-build-validation:
+    name: "Stage 4: Docker Build Validation"
+    needs: [unit-tests, integration-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker Container Image Locally
+        run: |
+          IMAGE_TAG="fastapi-gh-app:${{ github.sha }}"
+          echo "==> Compiling Docker container: ${IMAGE_TAG}..."
+          docker build -t "${IMAGE_TAG}" .
+          echo "==> Verifying container image integrity..."
+          docker image inspect "${IMAGE_TAG}" > /dev/null
+          echo "=========================================================="
+          echo "✅ Docker build validation completed successfully."
+          echo "🔒 CI Policy Enforced: Zero push to any container registry."
+          echo "=========================================================="

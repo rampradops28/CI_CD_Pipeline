@@ -1,0 +1,33 @@
+# Python byte-code
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+
+# Configuration and secrets
+.env
+.env.local
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+junit/
+
+# Static typing & linting
+.mypy_cache/
+.ruff_cache/
+
+# IDE files
+.vscode/
+.idea/
+
+# Docker build logs
+*.log

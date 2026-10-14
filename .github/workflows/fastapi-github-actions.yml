@@ -1,0 +1,123 @@
+# ==============================================================================
+# Root GitHub Actions CI Workflow for fastapi-github-actions/
+# ==============================================================================
+name: FastAPI GitHub Actions CI
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "fastapi-github-actions/**"
+      - ".github/workflows/fastapi-github-actions.yml"
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "fastapi-github-actions/**"
+
+permissions:
+  contents: read
+
+jobs:
+  code-quality:
+    name: "Stage 1: Code Quality & Linting"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "fastapi-github-actions/pyproject.toml"
+      - run: uv python install 3.11
+      - run: uv pip install --system -e ".[dev]"
+        working-directory: fastapi-github-actions
+      - run: uv run ruff check .
+        working-directory: fastapi-github-actions
+      - run: uv run ruff format --check .
+        working-directory: fastapi-github-actions
+
+  unit-tests:
+    name: "Stage 2: Unit Testing"
+    needs: code-quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "fastapi-github-actions/pyproject.toml"
+      - run: uv python install 3.11
+      - run: uv pip install --system -e ".[dev]"
+        working-directory: fastapi-github-actions
+      - run: |
+          mkdir -p junit
+          uv run pytest tests/unit -m unit -v --junitxml=junit/unit-test-results.xml
+        working-directory: fastapi-github-actions
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-results
+          path: fastapi-github-actions/junit/unit-test-results.xml
+
+  integration-tests:
+    name: "Stage 3: Integration Testing (PostgreSQL)"
+    needs: code-quality
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_secure_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "fastapi-github-actions/pyproject.toml"
+      - run: uv python install 3.11
+      - run: uv pip install --system -e ".[dev]"
+        working-directory: fastapi-github-actions
+      - name: Run Alembic Migrations
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@localhost:5432/test_db
+        run: uv run alembic upgrade head
+        working-directory: fastapi-github-actions
+      - name: Run Pytest Integration Tests
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres_secure_password@localhost:5432/test_db
+        run: |
+          mkdir -p junit
+          uv run pytest tests/integration -m integration -v \
+            --junitxml=junit/integration-test-results.xml \
+            --cov=app \
+            --cov-fail-under=80 \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov
+        working-directory: fastapi-github-actions
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: html-coverage-report
+          path: fastapi-github-actions/htmlcov/
+
+  docker-build-validation:
+    name: "Stage 4: Docker Build Validation"
+    needs: [unit-tests, integration-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Docker Image Build
+        run: |
+          IMAGE_TAG="fastapi-gh-app:${{ github.sha }}"
+          docker build -t "${IMAGE_TAG}" .
+          docker image inspect "${IMAGE_TAG}" > /dev/null
+          echo "✅ Docker build validation succeeded. Zero registry push policy enforced."
+        working-directory: fastapi-github-actions

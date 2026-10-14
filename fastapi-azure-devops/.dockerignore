@@ -1,0 +1,38 @@
+# Git and IDE metadata
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Environment files and credentials (CRITICAL FOR SECURITY)
+.env
+.env.*
+*.pem
+*.key
+
+# Local virtual environments
+.venv/
+env/
+venv/
+
+# Testing and coverage artifacts
+tests/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+junit/
+
+# Linting and static analysis caches
+.ruff_cache/
+.mypy_cache/
+*.log
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Azure Pipelines definitions
+.azure-pipelines/

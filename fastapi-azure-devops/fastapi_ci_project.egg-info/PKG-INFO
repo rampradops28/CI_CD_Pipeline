@@ -1,24 +1,21 @@
 Metadata-Version: 2.4
-Name: common-service
+Name: fastapi-ci-project
 Version: 0.1.0
-Summary: Enterprise FastAPI application with SQLAlchemy, Alembic, and uv tooling
-Author-email: Platform Engineering Team <platform@example.com>
+Summary: Production-grade FastAPI CI application with PostgreSQL, pytest, and Azure DevOps
 License: MIT
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
 Requires-Dist: fastapi>=0.110.0
 Requires-Dist: uvicorn[standard]>=0.29.0
 Requires-Dist: sqlalchemy>=2.0.28
-Requires-Dist: alembic>=1.13.1
 Requires-Dist: psycopg[binary]>=3.1.18
 Requires-Dist: pydantic>=2.6.4
 Requires-Dist: pydantic-settings>=2.2.1
 Provides-Extra: dev
 Requires-Dist: pytest>=8.1.1; extra == "dev"
 Requires-Dist: pytest-cov>=5.0.0; extra == "dev"
-Requires-Dist: ruff>=0.3.4; extra == "dev"
 Requires-Dist: httpx>=0.27.0; extra == "dev"
-
-# Common Service
-
-Enterprise FastAPI microservice template with SQLAlchemy, Alembic, and PostgreSQL integration testing.
+Requires-Dist: ruff>=0.3.4; extra == "dev"
+Requires-Dist: mypy>=1.9.0; extra == "dev"
+Requires-Dist: bandit>=1.7.8; extra == "dev"
+Requires-Dist: pip-audit>=2.7.2; extra == "dev"
