@@ -6,11 +6,6 @@
 #   Validates code quality, Ruff linting, formatting, in-memory unit tests,
 #   PostgreSQL integration tests, Alembic migrations, 80% coverage threshold,
 #   and Docker build integrity.
-#
-# Scope Boundary:
-#   - CI validation only.
-#   - Zero Continuous Deployment (CD).
-#   - Zero Docker image push to any container registry.
 # ==============================================================================
 
 name: FastAPI CI Pipeline (GitHub Actions)
@@ -35,17 +30,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Set up uv package manager
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
 
-      - name: Set up Python 3.11
-        run: uv python install 3.11
-
       - name: Install dependencies via uv
-        run: uv pip install --system -e ".[dev]"
+        run: uv sync --extra dev
 
       - name: Run Ruff Lint Check
         run: uv run ruff check .
@@ -64,17 +61,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up uv
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv package manager
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
 
-      - name: Set up Python 3.11
-        run: uv python install 3.11
-
-      - name: Install dependencies
-        run: uv pip install --system -e ".[dev]"
+      - name: Install dependencies via uv
+        run: uv sync --extra dev
 
       - name: Run Pytest Unit Tests
         run: |
@@ -115,17 +114,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up uv
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv package manager
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
 
-      - name: Set up Python 3.11
-        run: uv python install 3.11
-
-      - name: Install dependencies
-        run: uv pip install --system -e ".[dev]"
+      - name: Install dependencies via uv
+        run: uv sync --extra dev
 
       - name: Run Alembic Database Migrations
         env:

@@ -23,16 +23,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
           cache-dependency-glob: "fastapi-github-actions/pyproject.toml"
-      - run: uv python install 3.11
-      - run: uv pip install --system -e ".[dev]"
+      - name: Install dependencies via uv
+        run: uv sync --extra dev
         working-directory: fastapi-github-actions
-      - run: uv run ruff check .
+      - name: Run Ruff Lint Check
+        run: uv run ruff check .
         working-directory: fastapi-github-actions
-      - run: uv run ruff format --check .
+      - name: Run Ruff Format Check
+        run: uv run ruff format --check .
         working-directory: fastapi-github-actions
 
   unit-tests:
@@ -41,14 +48,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
           cache-dependency-glob: "fastapi-github-actions/pyproject.toml"
-      - run: uv python install 3.11
-      - run: uv pip install --system -e ".[dev]"
+      - name: Install dependencies via uv
+        run: uv sync --extra dev
         working-directory: fastapi-github-actions
-      - run: |
+      - name: Run Pytest Unit Tests
+        run: |
           mkdir -p junit
           uv run pytest tests/unit -m unit -v --junitxml=junit/unit-test-results.xml
         working-directory: fastapi-github-actions
@@ -78,12 +91,17 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
           cache-dependency-glob: "fastapi-github-actions/pyproject.toml"
-      - run: uv python install 3.11
-      - run: uv pip install --system -e ".[dev]"
+      - name: Install dependencies via uv
+        run: uv sync --extra dev
         working-directory: fastapi-github-actions
       - name: Run Alembic Migrations
         env:

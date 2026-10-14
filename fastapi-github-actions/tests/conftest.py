@@ -13,8 +13,7 @@ from app.main import app
 # For integration tests in CI or locally:
 # If DATABASE_URL is pointing to postgres, use it; otherwise fallback to in-memory sqlite
 TEST_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    os.getenv("DATABASE_URL", "sqlite:///:memory:")
+    "TEST_DATABASE_URL", os.getenv("DATABASE_URL", "sqlite:///:memory:")
 )
 
 # Convert postgresql+psycopg to sqlite if in fallback mode
@@ -55,6 +54,7 @@ def db_session() -> Generator[Session, None, None]:
 @pytest.fixture
 def client(db_session: Session) -> Generator[TestClient, None, None]:
     """FastAPI TestClient with overridden get_db dependency."""
+
     def override_get_db():
         try:
             yield db_session
